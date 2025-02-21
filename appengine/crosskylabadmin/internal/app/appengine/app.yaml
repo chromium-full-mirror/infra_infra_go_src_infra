@@ -1,0 +1,19 @@
+service: default
+runtime: go123
+app_engine_apis: true
+instance_class: F4_HIGHMEM
+automatic_scaling:
+  max_concurrent_requests: 20
+
+handlers:
+- url: /internal/.*
+  script: auto
+  secure: always
+  login: admin
+- url: /admin/.*
+  script: auto
+  secure: always
+  login: admin
+- url: /.*
+  script: auto
+  secure: always

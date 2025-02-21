@@ -1,0 +1,38 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by the Apache v2.0 license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package rubber_stamper.taskspb;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.chromium.org/infra/appengine/rubber-stamper/tasks/taskspb";
+
+// ChangeReviewTask describes a task to start reviewing a CL's metadata.
+message ChangeReviewTask {
+  // The Gerrit Host.
+  string host = 1;
+  // The change number.
+  int64 number = 2;
+  // Current revision of the change.
+  string revision = 3;
+  // The Gerrit Repo.
+  string repo = 4;
+  // Whether the change has Auto-Submit label.
+  bool auto_submit = 5;
+  // The numeric Change-Id of the change that this change reverts.
+  int64 revert_of = 6;
+  // The numeric Change-Id of the change that this change was cherry-picked
+  // from.
+  int64 cherry_pick_of_change = 7;
+  // The number of revisions.
+  int64 revisions_count = 8;
+  // The email of CL owner.
+  string owner_email = 9;
+  // CL hashtags.
+  repeated string hashtags = 10;
+  // Timestamp of when the change was created.
+  google.protobuf.Timestamp created = 11;
+}

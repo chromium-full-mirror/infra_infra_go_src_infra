@@ -1,0 +1,241 @@
+// Copyright 2023 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package fleetcost.api.rpc;
+
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/field_mask.proto";
+import "go.chromium.org/infra/cros/fleetcost/api/models/indicator.proto";
+import "go.chromium.org/infra/cros/fleetcost/api/models/result.proto";
+import "go.chromium.org/infra/cros/fleetcost/api/models/variable.proto";
+
+option go_package = "go.chromium.org/infra/cros/fleetcost/api/rpc;fleetcostpb";
+
+service FleetCost {
+  // Ping does not send or receive any information. It just checks that the service is there.
+  //
+  // It can't be given any data and does not return anything especially useful.
+  rpc Ping(PingRequest) returns (PingResponse) {
+    option (google.api.http) = {
+      post: "/v1/ping"
+    };
+  }
+
+  // PingUFS pings UFS and returns what it did.
+  rpc PingUFS(PingUFSRequest) returns (PingUFSResponse) {
+    option (google.api.http) = {
+      post: "/v1/ping-ufs"
+    };
+  }
+
+  // CreateCostIndicator creates a new cost indicator.
+  rpc CreateCostIndicator(CreateCostIndicatorRequest) returns (CreateCostIndicatorResponse) {
+    option (google.api.http) = {
+      post: "/v1/create-cost-indicator"
+    };
+  }
+
+  // ListCostIndicators creates a new cost indicator.
+  rpc ListCostIndicators(ListCostIndicatorsRequest) returns (ListCostIndicatorsResponse) {
+    option (google.api.http) = {
+      post: "/v1/list-cost-indicators"
+    };
+  }
+
+  // UpdateCostIndicator updates an existing cost indicator.
+  rpc UpdateCostIndicator(UpdateCostIndicatorRequest) returns (UpdateCostIndicatorResponse) {
+    option (google.api.http) = {
+      post: "/v1/update-cost-indicator"
+    };
+  }
+
+  rpc DeleteCostIndicator(DeleteCostIndicatorRequest) returns (DeleteCostIndicatorResponse) {
+    option (google.api.http) = {
+      post: "/v1/delete-cost-indicator"
+    };
+  }
+
+  // CreateVariable creates a variable for storing non-cost data.
+  rpc CreateVariable(CreateVariableRequest) returns (CreateVariableResponse) {
+    option (google.api.http) = {
+      post: "/v1/create-variable"
+    };
+  }
+
+  // GetCostResult gets the cost breakdown for a given device.
+  rpc GetCostResult(GetCostResultRequest) returns (models.CostResult) {
+    option (google.api.http) = {
+      post: "/v1/get-cost-result"
+    };
+  }
+
+  // PeristToBigquery persists records to BigQuery.
+  rpc PersistToBigquery(PersistToBigqueryRequest) returns (PersistToBigqueryResponse) {
+    option (google.api.http) = {
+      post: "/v1/tasks/persist-to-bigquery"
+    };
+  }
+
+  // RepopulateCache ensures that the cost data matches the state of UFS.
+  rpc RepopulateCache(RepopulateCacheRequest) returns (RepopulateCacheResponse) {
+    option (google.api.http) = {
+      post: "/v1/tasks/repopulate-cache"
+    };
+  }
+}
+
+// PingRequest intentionally contains nothing.
+message PingRequest {
+}
+
+// PingResponse intentionally contains nothing.
+message PingResponse {
+}
+
+// PingUFSRequest intentionally contains nothing.
+message PingUFSRequest {
+}
+
+// PingUFSResponse contains information about the request sent to and returned from UFS.
+//
+// This RPC is intended solely for diagnostic purposes.
+message PingUFSResponse {
+  // ufs_request is the request to UFS, encoded as JSON.
+  google.protobuf.Any ufs_request = 1;
+  // ufs_response is the response from UFS, encoded as JSON.
+  google.protobuf.Any ufs_response = 2;
+  // ufs_error is the error we encountered from trying to ping UFS.
+  string ufs_error = 3;
+  // ufs_hostname is the hostname of the UFS instance that we contacted.
+  string ufs_hostname = 4;
+}
+
+// CreateCostIndicatorRequest creates a new cost indicator.
+message CreateCostIndicatorRequest {
+  models.CostIndicator cost_indicator = 1;
+}
+
+// CreateCostIndicatorResponse contains the newly created CostIndicator.
+message CreateCostIndicatorResponse {
+  models.CostIndicator cost_indicator = 1;
+}
+
+// ListCostIndicatorsRequest lists the cost indicators.
+message ListCostIndicatorsRequest {
+  int32 pageSize = 1;
+  // TODO(gregorynisbet): Do we need filter disjunctions here? For the moment, don't add them.
+  ListCostIndicatorsFilter filter = 2;
+}
+
+// ListCostIndicatorsFilter is a filter query containing all the fields that can be filtered on.
+//
+// TODO(gregorynisbet): Do we want a separate Boolean field for searching for empty boards, models, SKUs?
+//                      Does the datastore query engine support this well?
+message ListCostIndicatorsFilter {
+  reserved 1, 2, 3;
+  reserved "board", "model", "sku";
+  // primary, secondary, and tertiary are three levels of taxonomy for indictors.
+  // Historically, primary was board, secondary was model, and tertiary was sku.
+  string primary = 6;
+  string secondary = 7;
+  string tertiary = 8;
+  // Location is the location as a string.
+  string location = 4;
+  // Type is the type as a string.
+  string type = 5;
+};
+
+// ListCostIndicatorsResponse lists cost indicators
+message ListCostIndicatorsResponse {
+  repeated models.CostIndicator cost_indicator = 1;
+}
+
+// UpdateCostIndicatorRequest updates a cost indicator.
+message UpdateCostIndicatorRequest {
+  models.CostIndicator cost_indicator = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // The list of fields to be updated.
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+// UpdateCostIndicatorResponse contains a CostIndicator.
+message UpdateCostIndicatorResponse {
+  models.CostIndicator cost_indicator = 1;
+}
+
+// GetCostResultRequest gets information about the cost of a device.
+message GetCostResultRequest {
+  string device_id = 1;
+  string hostname = 2;
+  bool force_update = 3;
+  // forgive missing entries forgives entries that are missing.
+  bool forgive_missing_entries = 4;
+  // If no UFS is true, then compute the answer for a generic entity (that may not exist in UFS).
+  // If no UFS is false, then do the usual thing and get information such as the board and model from UFS.
+  bool no_ufs = 5;
+  // An analysis hint is a hint provided to a cost result request when no_ufs is true
+  // that provides features for the DUT that would otherwise come from UFS.
+  //
+  // These features are:
+  //
+  // -- "chromeos"  (says that the DUT is an ordinary chromeos device)
+  // -- "pool:" ... (controls the pool)
+  repeated string analysis_hint = 6;
+}
+
+// DeleteCostIndicatorRequest deletes a cost_indicator
+message DeleteCostIndicatorRequest {
+  models.CostIndicator cost_indicator = 1;
+}
+
+// DeleteCostIndicatorResponse deletes a cost_indicator
+message DeleteCostIndicatorResponse {
+  models.CostIndicator cost_indicator = 1;
+}
+
+// PersistToBigqueryRequest does not contain any info, since
+// PersistToBigquery is intended to be called as a cron job.
+message PersistToBigqueryRequest {
+  // If readonly is true, then we perform a dry run and do not update BigQuery.
+  // If readonly is false, then we do update BigQuery.
+  bool readonly = 1;
+};
+
+message PersistToBigqueryResponse {
+  // Persisted records is the number of records that were persisted.
+  int32 persisted_records = 1;
+
+  // Succeeded is true if and only if no errors at all were encountered during persistence.
+  bool succeeded = 2;
+};
+
+// RepopulateCacheRequest doesn't contain any information. We always persist the entire cache.
+message RepopulateCacheRequest {
+  // forgive missing entries forgives entries that are missing.
+  bool forgive_missing_entries = 1;
+};
+
+// RepopulateCacheResponse records the result of repopulating the cache.
+message RepopulateCacheResponse {
+  // Persisted records is the number of records that were repopulated.
+  int32 processed_records = 1;
+
+  // Succeeded is true if and only if no errors at all were encountered when repopulating the cache.
+  bool succeeded = 2;
+};
+
+// CreateVariableRequest creates a new variable.
+message CreateVariableRequest {
+  models.Variable variable = 1;
+}
+
+// CreateVariableResponse contains only the newly created variable
+message CreateVariableResponse {
+  models.Variable variable = 1;
+}
+

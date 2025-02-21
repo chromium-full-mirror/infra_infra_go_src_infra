@@ -1,0 +1,148 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package stableversion
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+
+	"go.chromium.org/chromiumos/infra/proto/go/lab_platform"
+	"go.chromium.org/luci/common/testing/ftt"
+	"go.chromium.org/luci/common/testing/truth/assert"
+	"go.chromium.org/luci/common/testing/truth/should"
+	"go.chromium.org/luci/gae/impl/memory"
+)
+
+func fakeVersion(i int, deviceType, board, model, pool string) *lab_platform.StableVersion {
+	return &lab_platform.StableVersion{
+		Target: &lab_platform.StableVersionTarget{
+			DeviceType: deviceType,
+			Board:      board,
+			Model:      model,
+			Pool:       pool,
+		},
+		OsVersion:           fmt.Sprintf("xxx-%d-cros-version", i),
+		OsImagePath:         fmt.Sprintf("xxx-%d-cros-version-path", i),
+		FirmwareRoVersion:   fmt.Sprintf("xxx-%d-fw-ro-version", i),
+		FirmwareRoImagePath: fmt.Sprintf("xxx-%d-fw-ro-version-path", i),
+	}
+}
+
+func TestVersions(t *testing.T) {
+	ctx := context.Background()
+	ctx = memory.Use(ctx)
+
+	ftt.Run("StableVersion datastore", t, func(t *ftt.Test) {
+		t.Run("Good cases", func(t *ftt.Test) {
+			deviceType := "android"
+			board := "my-board"
+			model := "my-model"
+			board2 := "yours-board"
+			model2 := "yours-model"
+			pools := []string{"pool1", "pool2"}
+			version1 := fakeVersion(1, deviceType, board, model, "")
+			version2 := fakeVersion(2, deviceType, board2, model2, "pool1")
+
+			item, err := FindVersion(ctx, deviceType, board, model, pools)
+			assert.Loosely(t, err, should.NotBeNil)
+			assert.Loosely(t, item, should.BeNil)
+
+			err = WriteVersions(ctx, []*lab_platform.StableVersion{version1, version2})
+			assert.Loosely(t, err, should.BeNil)
+
+			// Find version1 without pools.
+			item, err = FindVersion(ctx, deviceType, board, model, nil)
+			assert.Loosely(t, err, should.BeNil)
+			assert.Loosely(t, item.OsVersion, should.Equal(version1.OsVersion))
+			assert.Loosely(t, item.OsVersion, should.NotEqual(version2.OsVersion))
+			assert.Loosely(t, item.OsImagePath, should.Equal(version1.OsImagePath))
+			assert.Loosely(t, item.FirmwareRoVersion, should.Equal(version1.FirmwareRoVersion))
+			assert.Loosely(t, item.FirmwareRoImagePath, should.Equal(version1.FirmwareRoImagePath))
+
+			// Find version1 as default when request with pools.
+			item, err = FindVersion(ctx, deviceType, board, model, pools)
+			assert.Loosely(t, err, should.BeNil)
+			assert.Loosely(t, item.OsVersion, should.Equal(version1.OsVersion))
+			assert.Loosely(t, item.OsVersion, should.NotEqual(version2.OsVersion))
+			assert.Loosely(t, item.OsImagePath, should.Equal(version1.OsImagePath))
+			assert.Loosely(t, item.FirmwareRoVersion, should.Equal(version1.FirmwareRoVersion))
+			assert.Loosely(t, item.FirmwareRoImagePath, should.Equal(version1.FirmwareRoImagePath))
+
+			// Find version2 with by a pool.
+			item, err = FindVersion(ctx, deviceType, board2, model2, pools)
+			assert.Loosely(t, err, should.BeNil)
+			assert.Loosely(t, item.OsVersion, should.NotEqual(version1.OsVersion))
+			assert.Loosely(t, item.OsVersion, should.Equal(version2.OsVersion))
+			assert.Loosely(t, item.OsImagePath, should.Equal(version2.OsImagePath))
+			assert.Loosely(t, item.FirmwareRoVersion, should.Equal(version2.FirmwareRoVersion))
+			assert.Loosely(t, item.FirmwareRoImagePath, should.Equal(version2.FirmwareRoImagePath))
+		})
+		t.Run("key ignores cases", func(t *ftt.Test) {
+			deviceType := "Cros"
+			board := "my1-Board"
+			model := "my1-Model"
+			version := fakeVersion(10, strings.ToLower(deviceType), strings.ToLower(board), strings.ToLower(model), "")
+
+			item, err := FindVersion(ctx, deviceType, board, model, nil)
+			assert.Loosely(t, err, should.NotBeNil)
+			assert.Loosely(t, item, should.BeNil)
+
+			err = WriteVersions(ctx, []*lab_platform.StableVersion{version})
+			assert.Loosely(t, err, should.BeNil)
+
+			// Find version1 without pools.
+			item, err = FindVersion(ctx, deviceType, board, model, nil)
+			assert.Loosely(t, err, should.BeNil)
+			assert.Loosely(t, item.OsVersion, should.Equal(version.OsVersion))
+			assert.Loosely(t, item.OsImagePath, should.Equal(version.OsImagePath))
+			assert.Loosely(t, item.FirmwareRoVersion, should.Equal(version.FirmwareRoVersion))
+			assert.Loosely(t, item.FirmwareRoImagePath, should.Equal(version.FirmwareRoImagePath))
+		})
+	})
+}
+
+func TestRemoveBadVersions(t *testing.T) {
+	versions := []*lab_platform.StableVersion{
+		fakeVersion(10, "dt-10", "board-10", "model-10", "pool-10"),
+		fakeVersion(11, "dt-11", "board-11", "model-11", "pool-11"),
+		fakeVersion(12, "dt-12", "board-12", "model-12", "pool-12"),
+		fakeVersion(13, "dt-13", "board-13", "model-13", "pool-13"),
+		fakeVersion(14, "dt-14", "board-14", "model-14", "pool-14"),
+		fakeVersion(15, "dt-15", "board-15", "model-15", "pool-15"),
+		fakeVersion(16, "dt-16", "board-16", "model-16", "pool-16"),
+		// Duplicate version
+		fakeVersion(50, "dt-50", "board-50", "model-50", "pool-50"),
+		fakeVersion(51, "dt-50", "board-50", "model-50", "pool-50"),
+		// Bad versions.
+		fakeVersion(100, "dt-100", "", "model-100", "pool-100"),
+		fakeVersion(101, "dt-101", "board-101", "", "pool-101"),
+		fakeVersion(102, "dt-102", "board-102", "model-102", ""),
+		// No device-type specified.
+		fakeVersion(200, "", "", "model-200", "pool-200"),
+		fakeVersion(201, "", "board-201", "", "pool-201"),
+		fakeVersion(202, "", "board-202", "model-202", ""),
+	}
+	keys := []string{
+		"devicetype=dt-10;board=board-10;model=model-10;pool=pool-10",
+		"devicetype=dt-11;board=board-11;model=model-11;pool=pool-11",
+		"devicetype=dt-12;board=board-12;model=model-12;pool=pool-12",
+		"devicetype=dt-13;board=board-13;model=model-13;pool=pool-13",
+		"devicetype=dt-14;board=board-14;model=model-14;pool=pool-14",
+		"devicetype=dt-15;board=board-15;model=model-15;pool=pool-15",
+		"devicetype=dt-16;board=board-16;model=model-16;pool=pool-16",
+		"devicetype=dt-50;board=board-50;model=model-50;pool=pool-50",
+		"devicetype=dt-102;board=board-102;model=model-102;pool=",
+		"devicetype=;board=board-202;model=model-202;pool=",
+	}
+	ctx := context.Background()
+	versionMap := removeBadVersions(ctx, versions)
+	for _, k := range keys {
+		if _, ok := versionMap[k]; !ok {
+			t.Errorf("TestRemoveBadVersions the key %q is missed, but expected!", k)
+		}
+	}
+}

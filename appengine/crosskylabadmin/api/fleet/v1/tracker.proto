@@ -1,0 +1,80 @@
+// Copyright 2018 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package crosskylabadmin.fleet;
+
+option go_package = "go.chromium.org/infra/appengine/crosskylabadmin/api/fleet/v1;fleet";
+
+// Tracker service exposes rpcs to summarize the state of ChromeOS Skylab
+// Swarming bot fleet.
+service Tracker {
+  // Filter out and queue the CrOS bots that require admin tasks Repair and
+  // Reset.
+  rpc PushBotsForAdminTasks(PushBotsForAdminTasksRequest)
+      returns (PushBotsForAdminTasksResponse);
+
+  // Filter out and queue the labstation bots that require admin tasks Repair.
+  rpc PushRepairJobsForLabstations(PushRepairJobsForLabstationsRequest)
+      returns (PushRepairJobsForLabstationsResponse);
+
+  // Report bots metrics.
+  rpc ReportBots(ReportBotsRequest) returns (ReportBotsResponse);
+
+  // Filter out and queue the CrOS bots to run admin tasks Audit.
+  rpc PushBotsForAdminAuditTasks(PushBotsForAdminAuditTasksRequest)
+      returns (PushBotsForAdminAuditTasksResponse);
+}
+
+// PushBotsForAdminTasksRequest is used for an internal RPC that looks at the existing bots and determines which ones
+// to repair or audit or perform some other admin task on.
+//
+// It takes the states for the DUTs we're looking at (for example "needs_repair" or "ready" or "repair_failed") as well as
+// a strategy, which is used to control the smart-scheduling feature.
+message PushBotsForAdminTasksRequest {
+  DutState target_dut_state = 1;
+  enum SchedulingStrategy {
+    // DefaultSchedulingStrategy means no smart scheduling. We only use the swarming state and the cron mechanism in GCP.
+    DefaultSchedulingStrategy = 0;
+    // LabstationRebootStrategy means that we repair the DUTs connected to a labstation after the labstation has rebooted.
+    LabstationRebootStrategy = 1;
+  }
+  SchedulingStrategy scheduling_strategy = 2;
+}
+
+message PushBotsForAdminTasksResponse {}
+
+message PushRepairJobsForLabstationsRequest {}
+
+message PushRepairJobsForLabstationsResponse {}
+
+message ReportBotsRequest {}
+
+message ReportBotsResponse {}
+
+message PushBotsForAdminAuditTasksRequest {
+  AuditTask task = 1;
+}
+
+message PushBotsForAdminAuditTasksResponse {}
+
+enum DutState {
+  DutStateInvalid = 0;
+  Ready = 1;
+  NeedsCleanup = 2;
+  NeedsRepair = 3;
+  NeedsReset = 4;
+  RepairFailed = 5;
+  NeedsReplacement = 6;
+  NeedsManualRepair = 7;
+  NeedsDeploy = 8;
+}
+
+enum AuditTask {
+  TaskInvalid = 0;
+  ServoUSBKey = 1;
+  DUTStorage = 2;
+  RPMConfig = 3;
+}

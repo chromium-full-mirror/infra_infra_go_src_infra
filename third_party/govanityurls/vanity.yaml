@@ -1,0 +1,66 @@
+host: go.chromium.org
+
+paths:
+  /chromiumos/config:
+    repo: https://chromium.googlesource.com/chromiumos/config
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/chromiumos/config
+      https://chromium.googlesource.com/chromiumos/config/+/main{/dir}
+      https://chromium.googlesource.com/chromiumos/config/+/main{/dir}/{file}#{line}
+
+  /chromiumos/infra/go:
+    repo: https://chromium.googlesource.com/chromiumos/infra/go
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/chromiumos/infra/go
+      https://chromium.googlesource.com/chromiumos/infra/go/+/main{/dir}
+      https://chromium.googlesource.com/chromiumos/infra/go/+/main{/dir}/{file}#{line}
+
+  /chromiumos/infra/proto:
+    repo: https://chromium.googlesource.com/chromiumos/infra/proto
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/chromiumos/infra/proto
+      https://chromium.googlesource.com/chromiumos/infra/proto/+/main{/dir}
+      https://chromium.googlesource.com/chromiumos/infra/proto/+/main{/dir}/{file}#{line}
+
+  /chromiumos/platform/dev-util:
+    repo: https://chromium.googlesource.com/chromiumos/platform/dev-util
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/chromiumos/platform/dev-util
+      https://chromium.googlesource.com/chromiumos/platform/dev-util/+/main{/dir}
+      https://chromium.googlesource.com/chromiumos/platform/dev-util/+/main{/dir}/{file}#{line}
+
+  /gae:
+    repo: https://chromium.googlesource.com/infra/luci/gae
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/infra/luci/gae
+      https://chromium.googlesource.com/infra/luci/gae/+/main{/dir}
+      https://chromium.googlesource.com/infra/luci/gae/+/main{/dir}/{file}#{line}
+
+  /luci:
+    repo: https://chromium.googlesource.com/infra/luci/luci-go
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/infra/luci/luci-go
+      https://chromium.googlesource.com/infra/luci/luci-go/+/main{/dir}
+      https://chromium.googlesource.com/infra/luci/luci-go/+/main{/dir}/{file}#{line}
+
+  /tast:
+    repo: https://chromium.googlesource.com/chromiumos/platform/tast
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/chromiumos/platform/tast
+      https://chromium.googlesource.com/chromiumos/platform/tast/+/main{/dir}
+      https://chromium.googlesource.com/chromiumos/platform/tast/+/main{/dir}/{file}#{line}
+
+  /tast-tests:
+    repo: https://chromium.googlesource.com/chromiumos/platform/tast-tests
+    vcs: git
+    display: >
+      https://chromium.googlesource.com/chromiumos/platform/tast-tests
+      https://chromium.googlesource.com/chromiumos/platform/tast-tests/+/main{/dir}
+      https://chromium.googlesource.com/chromiumos/platform/tast-tests/+/main{/dir}/{file}#{line}

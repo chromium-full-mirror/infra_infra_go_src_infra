@@ -1,0 +1,226 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package unifiedfleet.api.v1.models;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/api/v1/models;ufspb";
+
+import "google/protobuf/timestamp.proto";
+import "google/api/resource.proto";
+import "google/api/field_behavior.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/chassis_x.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/location.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/peripherals.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/network.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/state.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/ownership.proto";
+
+// Machine refers to the devices or bare metal servers
+// which serves the tests directly.
+//
+// Next Tag: 16
+message Machine {
+    option (google.api.resource) = {
+        type: "unified-fleet-system.appspot.com/Machine"
+        pattern: "machines/{machine}"
+    };
+    // A unique name for the machine.
+    //   * AssetTag for ChromeOS machine (device)
+    //   * Serial number for Chrome machine for now (server) (Ideally it should be assetTag once it’s ready)
+    // The format will be machines/asset:XXX or machines/sn:XXX
+    string name = 1;
+    // serial_number of the machine.
+    // for chromeOS machine, user is not allowed to update this field.
+    // SSW will update this field.
+    string serial_number = 2;
+
+    // Location details of where the machine is placed
+    Location location = 3;
+    oneof device {
+        // Chrome Browser Machine
+        ChromeBrowserMachine chrome_browser_machine = 4;
+        // Chrome OS Machine. The registration system will subscribe to the HaRT system,
+        // and automatically get it using Machine name once a machine gets recorded.
+        ChromeOSMachine chromeos_machine = 5 [
+                (google.api.field_behavior) = OUTPUT_ONLY];
+        // Attached Device. Device data for any USB-attached devices.
+        AttachedDevice attached_device = 11;
+        // Development board, e.g., Andreiboard
+        Devboard devboard = 13;
+    };
+    // Record the last update timestamp of this machine (In UTC timezone)
+    google.protobuf.Timestamp update_time = 6 [
+        (google.api.field_behavior) = OUTPUT_ONLY];
+    // Record the ACL info of the machine
+    string realm = 7;
+
+    // tags user can attach for easy querying/searching
+    repeated string tags = 8;
+
+    reserved 9;
+    reserved "state";
+
+    // State of the machine
+    State resource_state = 10;
+
+    // Asset tag of the machine
+    string asset_tag = 12;
+
+    // Ownership information of the host like ResourceGroup, Security level etc.
+    OwnershipData ownership = 14;
+
+    reserved 15;
+    reserved "cost_per_hour";
+}
+
+// ChromeBrowserMachine refers to bare metal servers in Chrome Browser lab
+message ChromeBrowserMachine {
+    // Descriptive name of Chrome Machine
+    string display_name = 1;
+    // Should match one of the predefined Chrome Platforms.
+    // Refers to ChromePlatform name
+    string chrome_platform = 2 [(google.api.resource_reference) = {
+        type: "unified-fleet-system.appspot.com/ChromePlatform"
+    }];
+
+    reserved 3;
+    reserved "nic";
+
+    reserved 10;
+    reserved "nics";
+
+    // Interface of its connected devices.
+    KVMInterface kvm_interface = 4;
+    RPMInterface rpm_interface = 5;
+
+    reserved 6;
+    reserved "network_device_interface";
+
+    reserved 7;
+    reserved "drac";
+
+    // Usually it's a buganizer bug.
+    string deployment_ticket = 8;
+    // Can be covered by deployment_ticket
+    string description = 9;
+    repeated Nic nic_objects = 11;
+    Drac drac_object = 12;
+}
+
+// ChromeOSMachine refers duts and servers in Chrome OS lab
+// NEXT TAG: 19
+message ChromeOSMachine {
+    // All infos come from the HaRT system.
+    // used by referencing device config.
+    string reference_board = 1;
+    // used by ChromeOS build system.
+    string build_target = 2;
+    string model = 3;
+    // Chromebook, labstation, servo, …
+    ChromeOSDeviceType device_type = 4;
+    // Used internally, Different boards/models could share the same name.
+    string google_code_name = 5;
+    // HaRT doesn't guarantee its existence.
+    string mac_address = 6;
+    // User not allowed to update this field. SSW will update this field.
+    string sku = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // the DLM SKU ID read from VPD on the device if set
+    string dlm_sku_id = 18;
+    // Phase of the device [PVT, EVT, etc,.] if available.
+    string phase = 8;
+    // Cost center associated with the asset.
+    string cost_center = 9;
+    // The manufacturing ID for a given DUT
+    // User not allowed to update this field. SSW will update this field.
+    string hwid = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // GPN stands for Google Part Number, unique identifier for the device
+    string gpn = 11;
+    // Capability to support Chromebook X features
+    double hw_x_compliance_version = 12;
+    // Capability to support Chromebook X features
+    bool is_cbx = 13;
+    // Chromebook X feature type
+    ChassisXBrandType cbx_feature_type = 14;
+    // Whether the SKU contains both CBX and non-CBX devices
+    bool is_mixed_x = 15;
+    // If the DUT has bluetooth
+    bool has_wifi_bt = 16;
+    // The wifichip string of the DUT
+    string wifi_bluetooth = 17;
+}
+
+// ChromeOSDeviceType refers to the different types of
+// device/machine in the Chrome OS lab
+enum ChromeOSDeviceType {
+    CHROME_OS_DEVICE_TYPE_UNSPECIFIED = 0;
+    DEVICE_CHROMEBOOK = 1;
+    DEVICE_LABSTATION = 2;
+    DEVICE_SERVO = 3;
+}
+
+// AttachedDevice refers to attached devices in the labs.
+//
+// Next Tag: 5
+message AttachedDevice {
+  // Manufacturer of the device. E.g. Apple, Samsung.
+  string manufacturer = 1;
+  // Device type of the device. E.g. iPad, Android phone, Android tablet.
+  AttachedDeviceType device_type = 2;
+  // Reference board of the device. E.g. goldfish, bravo, GT-I9000
+  string build_target = 3;
+  // Model of the device aka product in some cases. E.g. Nexus One, GT-I9000
+  string model = 4;
+}
+
+// AttachedDeviceType refers to the different types of device/machine in the
+// lab environment.
+//
+// Next Tag: 7
+enum AttachedDeviceType {
+  ATTACHED_DEVICE_TYPE_UNSPECIFIED = 0;
+  ATTACHED_DEVICE_TYPE_APPLE_PHONE = 1;
+  ATTACHED_DEVICE_TYPE_ANDROID_PHONE = 2;
+  ATTACHED_DEVICE_TYPE_APPLE_TABLET = 3;
+  ATTACHED_DEVICE_TYPE_ANDROID_TABLET = 4;
+  ATTACHED_DEVICE_TYPE_DEVBOARD = 5;
+  ATTACHED_DEVICE_TYPE_JETSTREAM = 6;
+}
+
+// Devboard refers to development boards for component firmware testing.
+//
+// Next Tag: 2
+message Devboard {
+  oneof board {
+    Andreiboard andreiboard = 1;
+    Icetower icetower = 2;
+    Dragonclaw dragonclaw = 3;
+  }
+}
+
+// Andreiboard refers to andreiboard type development boards.
+//
+// Next Tag: 2
+message Andreiboard {
+  // Serial for the UltraDebug interface.
+  // Can be empty if the devboard does not have UltraDebug.
+  string ultradebug_serial = 1;
+}
+
+// Icetower refers to icetower type development boards.
+//
+// Next Tag: 2
+message Icetower {
+  // Fingerprint module ID.
+  string fingerprint_id = 1;
+}
+
+// Dragonclaw refers to dragonclaw type development boards.
+//
+// Next Tag: 2
+message Dragonclaw {
+  // Fingerprint module ID.
+  string fingerprint_id = 1;
+}

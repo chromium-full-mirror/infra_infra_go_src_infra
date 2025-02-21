@@ -1,0 +1,131 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This file is purely used for local development. Do not deploy the service
+# in any way using this.
+version: '3.9'
+
+services:
+  device_lease_service:
+    container_name: device_lease_service
+    build:
+      context: .
+      dockerfile: ./cmd/device_lease_service/docker/Dockerfile
+    command: ["-cloud-project", "fleet-device-manager-dev",
+      "-auth-service-host", "chrome-infra-auth-dev.appspot.com",
+      "-grpc-addr", ":50051",
+      "-http-addr", ":8800",
+      "-admin-addr", ":8900",
+      "-db-host", "device_manager_db",
+      "-db-port", "5432",
+      "-db-name", "device_manager_db",
+      "-db-user", "postgres",
+      "-db-password-secret", "devsecret://cGFzc3dvcmQ",
+      "-db-conn-max-lifetime", "1m",
+      "-db-max-idle-conns", "50",
+      "-db-max-open-conns", "50",
+      "-token-cache-dir", "/tokens"]
+    user: ${CURRENT_UID}
+    environment:
+      DB_USER: postgres
+      DB_HOST: device_manager_db
+      DB_PORT: 5432
+      DB_NAME: device_manager_db
+      DATABASE_URL: "host=device_manager_db user=postgres password=password dbname=device_manager_db sslmode=disable"
+      PUBSUB_EMULATOR_HOST: pubsub:8085 # uncomment to enable pubsub emulator
+    ports:
+      - "8800:8800"
+      - "8900:8900"
+      - "50051:50051"
+    volumes:
+      - ~/.config/chrome_infra/auth:/tokens
+    depends_on:
+      - device_manager_db
+    stdin_open: true
+    tty: true
+  notifier_service:
+    container_name: notifier_service
+    build:
+      context: .
+      dockerfile: ./cmd/notifier_service/docker/Dockerfile
+    command: ["-cloud-project", "fleet-device-manager-dev",
+      "-auth-service-host", "chrome-infra-auth-dev.appspot.com",
+      "-db-host", "device_manager_db",
+      "-db-port", "5432",
+      "-db-name", "device_manager_db",
+      "-db-user", "postgres",
+      "-db-password-secret", "devsecret://cGFzc3dvcmQ",
+      "-db-conn-max-lifetime", "1m",
+      "-db-max-idle-conns", "50",
+      "-db-max-open-conns", "50",
+      "-publish-workers", "50",
+      "-update-batch-size", "1000",
+      "-max-update-wait", "100",
+      "-token-cache-dir", "/tokens"]
+    user: ${CURRENT_UID}
+    environment:
+      DB_USER: postgres
+      DB_HOST: device_manager_db
+      DB_PORT: 5432
+      DB_NAME: device_manager_db
+      DATABASE_URL: "host=device_manager_db user=postgres password=password dbname=device_manager_db sslmode=disable"
+      PUBSUB_EMULATOR_HOST: pubsub:8085 # uncomment to enable pubsub emulator
+    volumes:
+      - ~/.config/chrome_infra/auth:/tokens
+    depends_on:
+      - device_manager_db
+    stdin_open: true
+    tty: true
+  expirer_service:
+    container_name: expirer_service
+    build:
+      context: .
+      dockerfile: ./cmd/expirer_service/docker/Dockerfile
+    command: ["-cloud-project", "fleet-device-manager-dev",
+      "-auth-service-host", "chrome-infra-auth-dev.appspot.com",
+      "-db-host", "device_manager_db",
+      "-db-port", "5432",
+      "-db-name", "device_manager_db",
+      "-db-user", "postgres",
+      "-db-password-secret", "devsecret://cGFzc3dvcmQ",
+      "-db-conn-max-lifetime", "1m",
+      "-db-max-idle-conns", "50",
+      "-db-max-open-conns", "50",
+      "-expiration-workers", "50",
+      "-token-cache-dir", "/tokens"]
+    user: ${CURRENT_UID}
+    environment:
+      DB_USER: postgres
+      DB_HOST: device_manager_db
+      DB_PORT: 5432
+      DB_NAME: device_manager_db
+      DATABASE_URL: "host=device_manager_db user=postgres password=password dbname=device_manager_db sslmode=disable"
+    volumes:
+      - ~/.config/chrome_infra/auth:/tokens
+    depends_on:
+      - device_manager_db
+    stdin_open: true
+    tty: true
+  device_manager_db:
+    container_name: device_manager_db
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: postgres
+      POSTGRES_DB: device_manager_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql@15/data:rw
+  pubsub:
+    container_name: pubsub
+    stdin_open: true
+    tty: true
+    ports:
+      - "8085:8085"
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk
+    command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+
+volumes:
+  pgdata: {}

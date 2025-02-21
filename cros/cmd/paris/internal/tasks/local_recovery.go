@@ -1,0 +1,395 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package tasks
+
+import (
+	"context"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+
+	"github.com/maruel/subcommands"
+
+	"go.chromium.org/luci/auth/client/authcli"
+	"go.chromium.org/luci/common/cli"
+	"go.chromium.org/luci/common/errors"
+	lflag "go.chromium.org/luci/common/flag"
+	"go.chromium.org/luci/common/logging"
+	"go.chromium.org/luci/grpc/prpc"
+
+	fleet "go.chromium.org/infra/appengine/crosskylabadmin/api/fleet/v1"
+	"go.chromium.org/infra/cmdsupport/cmdlib"
+	"go.chromium.org/infra/cros/cmd/labpack/cft"
+	"go.chromium.org/infra/cros/cmd/labpack/logger"
+	commonFlags "go.chromium.org/infra/cros/cmd/paris/internal/cmdlib"
+	"go.chromium.org/infra/cros/cmd/paris/internal/site"
+	kclient "go.chromium.org/infra/cros/karte/client"
+	"go.chromium.org/infra/cros/recovery"
+	"go.chromium.org/infra/cros/recovery/dev"
+	"go.chromium.org/infra/cros/recovery/karte"
+	"go.chromium.org/infra/cros/recovery/logger/metrics"
+	"go.chromium.org/infra/cros/recovery/namespace"
+	"go.chromium.org/infra/cros/recovery/scopes"
+	"go.chromium.org/infra/cros/recovery/version"
+	"go.chromium.org/infra/libs/skylab/buildbucket"
+	ufsAPI "go.chromium.org/infra/unifiedfleet/api/v1/rpc"
+)
+
+// defaultDUTSSHKeyPathLocal returns the recommended local DUT ssh keyfile path.
+//
+// It's the default DUT ssh key path that paris will use.
+// It's in ChromiumOS internal manifest, running `repo sync` will automatically get this partner key downloaded.
+func defaultDUTSSHKeyPathLocal() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "~/chromiumos/sshkeys/partner_testing_rsa"
+	}
+	return filepath.Join(home, "chromiumos/sshkeys/partner_testing_rsa")
+}
+
+// LocalRecovery subcommand: Running verify/recovery against the DUT from local environment.
+var LocalRecovery = &subcommands.Command{
+	UsageLine: "local-recovery UNIT_NAME",
+	ShortDesc: "run recovery from local env.",
+	LongDesc: `Run recovery against a DUT from local environment.
+
+For now only running in testing mode.`,
+	CommandRun: func() subcommands.CommandRun {
+		c := &localRecoveryRun{
+			devHostProxyAddresses: make(map[string]string),
+		}
+		c.authFlags.Register(&c.Flags, site.DefaultAuthOptions)
+		c.CommonFlags.Register(&c.Flags)
+		c.envFlags.Register(&c.Flags)
+		// TODO(otabek@) Add more details with instruction how to get default config as example.
+		c.Flags.StringVar(&c.configFile, "config", "", "Path to the custom json config file.")
+		c.Flags.StringVar(&c.karteServer, "karte-server", "dev", "Use karte metric to record the action (dev by default).")
+		c.Flags.BoolVar(&c.csaServer, "csa-server", true, "Use CSA Service or not.")
+
+		c.Flags.StringVar(&c.devJumpHost, "dev-jump-host", "", "Jump host for SSH (Dev-only feature).")
+		c.Flags.Var(lflag.JSONMap(&c.devHostProxyAddresses), "host-proxies",
+			"JSON map of resource names to proxy addresses to use for ssh access (Dev-only feature). "+
+				"For example, if you have an ssh tunnel to host chromeos15-row9-rack2-host1 at localhost:2200, you would set this to '{\"chromeos15-row9-rack2-host1\":\"localhost:2200\"}'. "+
+				"The recovery process will then ssh into localhost:2200 when it otherwise would have tried to ssh into chromeos15-row9-rack2-host1. "+
+				"The tunnel should point to port 22 on the target host so that requests are sent to the host's ssh server. "+
+				"For easy tunneling, use labtunnel to create and maintain your tunnels and check the logs it emits for this JSON map (see go/labtunnel for docs).")
+		c.Flags.StringVar(&c.logRoot, "log-root", "", "Path to the custom json config file.")
+		c.Flags.BoolVar(&c.generateLogFiles, "generate-log-files", false, "Generate log files. Default is no.")
+
+		c.Flags.BoolVar(&c.onlyVerify, "only-verify", true, "Enable recovery actions. Default is only run verify.")
+		c.Flags.BoolVar(&c.devPrintProto, "log-proto", false, "Print proto data of dut. Default is no.")
+		c.Flags.BoolVar(&c.updateInventory, "update-inv", false, "Update UFS at the end execution. Default is no.")
+		c.Flags.BoolVar(&c.showSteps, "steps", false, "Show generated steps. Default is no.")
+		c.Flags.BoolVar(&c.noCft, "no-cft", false, "Disable CFT. Default is no.")
+		c.Flags.StringVar(&c.taskName, "task-name", "recovery", `What type of task name to use. The default is "recovery".`)
+		c.Flags.BoolVar(&c.devOptionActive, "dev-active", true, `Set DevOption Active. Default true.`)
+		c.Flags.StringVar(&c.namespace, "namespace", "os", `Specify which namespace to use. The default is "os".`)
+		c.Flags.StringVar(&c.adbPort, "adb-port", "", `Specify value for ADB_CONNECTION_PORT.`)
+		c.Flags.StringVar(&c.adbPath, "adb-path", "", `Specify value for ADB_PATH.`)
+		return c
+	},
+}
+
+type localRecoveryRun struct {
+	subcommands.CommandRunBase
+	commonFlags.CommonFlags
+	authFlags authcli.Flags
+	envFlags  site.EnvFlags
+
+	devJumpHost           string
+	devHostProxyAddresses map[string]string
+	logRoot               string
+	configFile            string
+	karteServer           string
+	csaServer             bool
+	onlyVerify            bool
+	updateInventory       bool
+	showSteps             bool
+	generateLogFiles      bool
+	taskName              string
+	namespace             string
+	noCft                 bool
+
+	adbPort string
+	adbPath string
+
+	devPrintProto   bool
+	devOptionActive bool
+
+	swarmingID string
+	bbID       string
+}
+
+// Run initiates execution of local recovery.
+func (c *localRecoveryRun) Run(a subcommands.Application, args []string, env subcommands.Env) int {
+	if err := c.innerRun(a, args, env); err != nil {
+		cmdlib.PrintError(a, err)
+		return 1
+	}
+	return 0
+}
+
+// innerRun executes internal logic of control.
+func (c *localRecoveryRun) innerRun(a subcommands.Application, args []string, env subcommands.Env) error {
+	var unit string
+	if len(args) > 1 {
+		return errors.New("does not support more than one unit per request")
+	} else if len(args) == 1 {
+		unit = args[0]
+	}
+	if unit == "" {
+		return errors.New("unit is not specified")
+	}
+	tn, err := buildbucket.NormalizeTaskName(c.taskName)
+	if err != nil {
+		return errors.Annotate(err, "local recovery").Err()
+	}
+	if c.adbPort != "" {
+		os.Setenv("ADB_CONNECTION_PORT", c.adbPort)
+	}
+	if c.adbPath != "" {
+		os.Setenv("ADB_PATH", c.adbPath)
+	}
+	ctx := cli.GetContext(a, c, env)
+
+	// React to user cancel.
+	ctx, cancel := context.WithCancel(ctx)
+	cs := make(chan os.Signal, 1)
+	signal.Notify(cs, os.Interrupt)
+	defer func() {
+		signal.Stop(cs)
+		cancel()
+	}()
+	go func() {
+		select {
+		case <-cs:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	logRoot, err := c.getLogRoot()
+	if err != nil {
+		return errors.Annotate(err, "local recovery").Err()
+	}
+	// Created logger and log files.
+	logger, err := c.createLogger(ctx, logRoot)
+	if err != nil {
+		return errors.Annotate(err, "local recovery: create logger").Err()
+	}
+	defer logger.Close()
+	ctx = namespace.Set(ctx, c.namespace)
+	hc, err := cmdlib.NewHTTPClient(ctx, &c.authFlags)
+	if err != nil {
+		return errors.Annotate(err, "local recovery: create http client").Err()
+	}
+	e := c.envFlags.Env()
+	logger.Debugf("Init DEV options!")
+	ctx = setDevOptions(ctx, &devOptions{
+		active:         c.devOptionActive,
+		printDUTProtos: c.devPrintProto,
+	})
+	logger.Debugf("Init Karte!")
+	var metrics metrics.Metrics
+	if c.karteServer != "" {
+		var err error
+		authOptions, err := c.authFlags.Options()
+		if err != nil {
+			return errors.Annotate(err, "create action").Err()
+		}
+		if c.karteServer == "dev" {
+			metrics, err = karte.NewMetrics(ctx, kclient.DevConfig(authOptions))
+		} else if c.karteServer == "prod" {
+			metrics, err = karte.NewMetrics(ctx, kclient.ProdConfig(authOptions))
+		} else if c.karteServer == "local" {
+			metrics, err = karte.NewMetrics(ctx, kclient.LocalConfig(authOptions))
+		} else if c.karteServer == "no" {
+			// Do not create client.
+			metrics = nil
+		} else {
+			metrics, err = karte.NewMetrics(ctx, kclient.EmptyConfig())
+		}
+		if err == nil {
+			logger.Infof("internal run: metrics client successfully created.")
+		} else {
+			return errors.Annotate(err, "inner run: failed to instantiate karte client of server: %q", c.karteServer).Err()
+		}
+	}
+	logger.Debugf("Init TLW with inventory: %s and csa: %s sources", e.UFSService, e.AdminService)
+	ic := ufsAPI.NewFleetPRPCClient(&prpc.Client{
+		C:       hc,
+		Host:    e.UFSService,
+		Options: site.UFSPRPCOptions,
+	})
+	var csac fleet.InventoryClient
+	if c.csaServer {
+		csac = fleet.NewInventoryPRPCClient(
+			&prpc.Client{
+				C:       hc,
+				Host:    e.AdminService,
+				Options: site.DefaultPRPCOptions,
+			},
+		)
+	}
+	params := scopes.GetParamCopy(ctx)
+	if csac != nil {
+		params[scopes.ParamKeyStableVersionServicePath] = e.AdminService
+		ctx = version.WithClient(ctx, csac)
+	}
+	if ic != nil {
+		params[scopes.ParamKeyInventoryServicePath] = e.UFSService
+	}
+	params[scopes.ParamKeySwarmingTaskID] = c.swarmingID
+	params[scopes.ParamKeyBuildbucketID] = c.bbID
+	if !c.noCft {
+		cftInfo := &cft.Info{
+			UnitName:       unit,
+			CreateStep:     c.showSteps,
+			RootDir:        logRoot,
+			SwarmingTaskID: c.swarmingID,
+			BBID:           c.bbID,
+		}
+		if ctr, cftCloser, err := cft.Prepare(ctx, cftInfo, metrics, logger); err != nil {
+			return errors.Annotate(err, "local recovery: start cft").Err()
+		} else {
+			params[scopes.ParamKeyCTRClient] = ctr
+			defer func() {
+				if err := cftCloser(ctx); err != nil {
+					logger.Infof("Fail to close cft client: %s", err)
+				}
+			}()
+		}
+	}
+	ctx = scopes.WithParams(ctx, params)
+	access, err := recovery.NewLocalTLWAccess(ic)
+	if err != nil {
+		return errors.Annotate(err, "local recovery: create tlw access").Err()
+	}
+	defer access.Close(ctx)
+
+	in := &recovery.RunArgs{
+		UnitName:              unit,
+		Access:                access,
+		Logger:                logger,
+		EnableRecovery:        !c.onlyVerify,
+		EnableUpdateInventory: c.updateInventory,
+		ShowSteps:             c.showSteps,
+		Metrics:               metrics,
+		TaskName:              tn,
+		LogRoot:               logRoot,
+		DevJumpHost:           c.devJumpHost,
+		DevHostProxyAddresses: c.devHostProxyAddresses,
+	}
+	if uErr := in.UseConfigFile(c.configFile); uErr != nil {
+		return errors.Annotate(err, "local recovery").Err()
+	}
+	if err = recovery.Run(ctx, in); err != nil {
+		return errors.Annotate(err, "local recovery").Err()
+	}
+	logger.Infof("Task on %q has completed successfully", unit)
+	return nil
+}
+
+func (c *localRecoveryRun) getLogRoot() (string, error) {
+	// TODO(gregorynisbet): Clean up the logs, include the current timestamp, or generally
+	// do something smarter than just setting the logs to "./logs".
+	logRoot := c.logRoot
+	if logRoot == "" {
+		logRoot = "./logs"
+	}
+	logRoot, err := filepath.Abs(logRoot)
+	if err != nil {
+		return logRoot, errors.Annotate(err, "get log root").Err()
+	}
+	err = os.MkdirAll(logRoot, 0755)
+	return logRoot, errors.Annotate(err, "get log root").Err()
+}
+
+// recoveryLogger represents local recovery logger implementation.
+//
+// Logger created to extend logger for indentation.
+type recoveryLogger struct {
+	log logger.Logger
+	// Logger indentation for messages.
+	indentation int32
+}
+
+// Create custom logger config with custom formatter.
+func (c *localRecoveryRun) createLogger(ctx context.Context, logDir string) (*recoveryLogger, error) {
+	const callDepth = 3
+	stdLevel := logging.Info
+	if c.Verbose() {
+		stdLevel = logging.Debug
+	}
+	l := &recoveryLogger{}
+	_, log, err := logger.NewLogger(ctx, callDepth, logDir, stdLevel, logger.DefaultFormat, c.generateLogFiles)
+	l.log = log
+	return l, errors.Annotate(err, "create logger").Err()
+}
+
+// Close log resources.
+func (l *recoveryLogger) Close() {
+	l.log.Close()
+}
+
+// Debugf log message at Debug level.
+func (l *recoveryLogger) Debugf(format string, args ...interface{}) {
+	l.log.Debugf(l.indentString(format), args...)
+}
+
+// Infof is like Debugf, but logs at Info level.
+func (l *recoveryLogger) Infof(format string, args ...interface{}) {
+	l.log.Infof(l.indentString(format), args...)
+}
+
+// Warningf is like Debugf, but logs at Warning level.
+func (l *recoveryLogger) Warningf(format string, args ...interface{}) {
+	l.log.Warningf(l.indentString(format), args...)
+}
+
+// Errorf is like Debug, but logs at Error level.
+func (l *recoveryLogger) Errorf(format string, args ...interface{}) {
+	l.log.Errorf(l.indentString(format), args...)
+}
+
+// Indent increment indentation for logger.
+func (l *recoveryLogger) Indent() {
+	atomic.AddInt32(&l.indentation, 1)
+}
+
+// Dedent decrement indentation for logger.
+func (l *recoveryLogger) Dedent() {
+	atomic.AddInt32(&l.indentation, -1)
+}
+
+// Apply indent to the string.
+func (l *recoveryLogger) indentString(v string) string {
+	i := atomic.LoadInt32(&l.indentation)
+	if i <= 0 {
+		return v
+	}
+	indent := strings.Repeat("  ", int(i))
+	return indent + v
+}
+
+// Local implementation of devOptions.
+type devOptions struct {
+	active         bool
+	printDUTProtos bool
+}
+
+func (d *devOptions) IsActive() bool {
+	return d.active
+}
+
+func (d *devOptions) PrintDUTProtos() bool {
+	return d.printDUTProtos
+}
+
+// setDevOptions sets local development options.
+func setDevOptions(ctx context.Context, option dev.ActiveLocalDevOption) context.Context {
+	return dev.WithDevOptions(ctx, option)
+}

@@ -1,0 +1,52 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package unifiedfleet.api.v1.models;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/api/v1/models;ufspb";
+
+import "google/protobuf/timestamp.proto";
+import "google/api/resource.proto";
+import "google/api/field_behavior.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/location.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/state.proto";
+
+// CachingService refers to caching service information in the chromeos lab
+//
+// A lab can have multiple caching services running. Each caching service has a primary node
+// and a secondary node and serve a particular subnet.
+// UFS stores the information of all caching services available in the labs.
+message CachingService {
+  option (google.api.resource) = {
+        type: "unified-fleet-system.appspot.com/CachingService"
+        pattern: "cachingservices/{ipv4}"
+  };
+  // caching service name
+  // format will be 'cachingservices/{ipv4}'
+  string name = 1;
+  // port info of the caching service
+  int32 port = 2;
+  // particular subnet which the caching service serves/supports
+  // Deprecated. Use 'serving_subnets' instead.
+  string serving_subnet = 3 [deprecated=true];
+  // ipv4 address of the primary node of the caching service
+  string primary_node = 4;
+  // ipv4 address of the secondary node of the caching service
+  string secondary_node = 5;
+  // state of the caching service
+  State state = 6;
+  // description of the caching service
+  string description = 7;
+  // record the last update timestamp of this caching service (In UTC timezone)
+  google.protobuf.Timestamp update_time = 8 [
+        (google.api.field_behavior) = OUTPUT_ONLY];
+  // Particular subnets which the caching service serves/supports. One caching
+  // service can support multiple subnets in the case of P2P network.
+  repeated string serving_subnets = 9;
+  // The UFS zones the caching service serves. One caching service can support
+  // multiple zones, e.g. [CHROMEOS2, CHROMEOS4, CHROMEOS6]
+  repeated Zone zones = 10;
+}

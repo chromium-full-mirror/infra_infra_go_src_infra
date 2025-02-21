@@ -1,0 +1,37 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package chromeos.recovery;
+
+option go_package = "go.chromium.org/infra/cros/recovery/config;config";
+
+// MetricsConfig configures a single action.
+message MetricsConfig {
+  // UploadPolicy specifies what to do with the metrics created by the action in
+  // question.
+  enum UploadPolicy {
+    // DEFAULT_UPLOAD_POLICY uploads everything.
+    DEFAULT_UPLOAD_POLICY = 0;
+    // SKIP_ALL skips uploading all metrics.
+    SKIP_ALL = 1;
+    // UPLOAD_ON_ERROR only uploads a metric if the action was unsuccessful in
+    // some way.
+    //
+    // TODO(gregorynisbet): Add in another policy to upload ALL errors and 1% of
+    // successes to make it possible to
+    //                      recover the true success rate for actions that have
+    //                      been throttled in this way.
+    //
+    // TODO(gregorynisbet): Consider making this or some other kind of
+    // "throttled" policy the default policy.
+    //
+    UPLOAD_ON_ERROR = 2;
+  }
+  // upload_policy is the policy for uploading the individual action.
+  UploadPolicy upload_policy = 1;
+  // custom_kind specifies a custom kind to use for action, if one is provided.
+  string custom_kind = 2;
+}

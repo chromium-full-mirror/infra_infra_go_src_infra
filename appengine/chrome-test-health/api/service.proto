@@ -1,0 +1,221 @@
+// Copyright 2023 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package test_resources;
+
+option go_package = "go.chromium.org/infra/appengine/chrome-test-health/api";
+
+import "google/protobuf/descriptor.proto";
+import "google/api/field_behavior.proto";
+
+service Stats {
+  // Updates metrics for the given time period. This will be used for
+  // backfilling when the cron job wasn't run
+  rpc UpdateMetricsTable(UpdateMetricsTableRequest) returns (UpdateMetricsTableResponse);
+
+  // Gets all the components as well as a list of all the components the user's
+  // team is responsible for
+  rpc ListComponents(ListComponentsRequest) returns (ListComponentsResponse);
+
+  // Gets information about a test. This includes all the variants of that test
+  rpc FetchTestMetrics(FetchTestMetricsRequest) returns (FetchTestMetricsResponse);
+
+  // Gets information about a file or directory.
+  rpc FetchDirectoryMetrics(FetchDirectoryMetricsRequest) returns (FetchDirectoryMetricsResponse);
+}
+
+message UpdateMetricsTableRequest {
+  // Inclusive start date to update
+  // Dates should be specified in YYYY-MM-DD format.
+  string from_date = 1 [ (google.api.field_behavior) = REQUIRED ];
+  // Inclusive end date to update
+  // Dates should be specified in YYYY-MM-DD format.
+  string to_date = 2 [ (google.api.field_behavior) = REQUIRED ];
+}
+
+message UpdateMetricsTableResponse {
+}
+
+
+message ListComponentsRequest {
+}
+
+message ListComponentsResponse {
+  // A list of component names that can be passed into other services to get
+  // test information about
+  repeated string components = 1;
+  // A list of components owned by the signed in user. For public or not
+  // signed in googlers, returns an empty list
+  repeated string owned_components = 2;
+}
+
+// Metrics that can by retrieved for any view
+enum MetricType {
+  UNKNOWN_METRIC = 0;
+  NUM_RUNS = 1;
+  NUM_FAILURES = 2;
+  TOTAL_RUNTIME = 3;
+  AVG_CORES = 4;
+  AVG_RUNTIME = 5;
+  P50_RUNTIME = 6;
+  P90_RUNTIME = 7;
+}
+
+// Sort types includes all metric types as well as the name (ie test name or
+// directory name to sort)
+enum SortType {
+  UNKNOWN_SORTTYPE = 0;
+  SORT_NAME = 1;
+  SORT_NUM_RUNS = 2;
+  SORT_NUM_FAILURES = 3;
+  SORT_TOTAL_RUNTIME = 4;
+  SORT_AVG_CORES = 5;
+  SORT_AVG_RUNTIME = 6;
+  SORT_P50_RUNTIME = 7;
+  SORT_P90_RUNTIME = 8;
+ }
+
+// Enumeration to specify the time period to fetch
+enum Period {
+  UNKNOWN_PERIOD = 0;
+  DAY = 1;
+  WEEK = 2;
+  MONTH = 3;
+}
+
+message SortBy {
+  // What to sort by
+  SortType metric = 1;
+  // Ascending or Descending
+  bool ascending = 2;
+  // The day to do the sorting on. This day must be in the request as well
+  // Defaults to the first date being requested
+  string sort_date = 3;
+}
+
+message FetchTestMetricsRequest {
+  // The components to get metrics for. This is effectively a filter.
+  // Passing no components will return unfiltered components as if all
+  // components had been passed
+  repeated string components = 1;
+  // Filter specific to the test file names.
+  // An empty string will do no filtering
+  repeated string file_names = 2;
+  // Time period to fetch (e.g. DAY, WEEK)
+  Period period = 3;
+  // Dates to fetch.  This should align to the period.
+  // Dates should be specified in YYYY-MM-DD format.
+  repeated string dates = 4 [ (google.api.field_behavior) = REQUIRED ];
+  // Metrics to fetch.
+  // This is required.  If no metrics are specified an error is returned.
+  repeated MetricType metrics = 5 [ (google.api.field_behavior) = REQUIRED ];
+  // A string filter. This will return metrics for tests that have parts
+  // of the tokenized filter
+  // An empty string will do no filtering
+  string filter = 6;
+  // The offset to start at for the next request
+  int64 page_offset = 7;
+  // The maximum number of tests to retrieve for this request
+  int64 page_size = 8;
+  // The order in which to return the results
+  SortBy sort = 9;
+}
+
+message FetchTestMetricsResponse {
+  // An array of information about each test for each of the requested days
+  repeated TestDateMetricData tests = 1;
+  // Indicates whether this is the last page or another can be
+  // requested
+  bool last_page = 2;
+}
+
+message TestDateMetricData {
+  // The test's unique id
+  string test_id = 1;
+  // The test's display name
+  string test_name = 2;
+  // The file in which the test is contained
+  string file_name = 3;
+  // Rollup metrics for the test id (i.e. the rolled up variants). This is a map
+  // of dates (in YYYY-MM-DD format) to an array of measured metrics.
+  map<string, TestMetricsArray> metrics = 4;
+  // Breakdown of the variants of this test
+  repeated TestVariantData variants = 5;
+}
+
+message TestVariantData {
+  // The suite which this variant belongs to
+  string suite = 1;
+  // The builder which this variant was run on
+  string builder = 2;
+  // The bucket the builder is in (i.e. try, ci)
+  string bucket = 3;
+  // Rollup metrics for the variant. This is a map of dates (in YYYY-MM-DD
+  // format) to an array of measured metrics.
+  map<string, TestMetricsArray> metrics = 4;
+}
+
+message TestMetricsArray {
+  // The requested metric mapped to the value of that metric
+  repeated TestMetricsData data = 1;
+}
+
+message TestMetricsData {
+  // The metric being measured
+  MetricType metric_type = 1;
+  // The value of the metric
+  double metric_value = 2;
+}
+
+message FetchDirectoryMetricsRequest {
+  // The components being rolled up for the given metrics
+  // Passing no components will return unfiltered components as if all
+  // components had been passed
+  repeated string components = 1;
+  // Time period to fetch (e.g. DAY, WEEK)
+  Period period = 2;
+  // Dates to fetch.  This should align to the period.
+  // Dates should be specified in YYYY-MM-DD format.
+  repeated string dates = 3 [ (google.api.field_behavior) = REQUIRED ];
+  // The optional parent node for this data (i.e. The directory to get the child
+  // metrics for). The root parent_id is '/'. Passing an empty string will
+  // provide invalid filenames including results with no file name attached
+  repeated string parent_ids = 4 [ (google.api.field_behavior) = REQUIRED ];
+  // A string filter. This will return metrics for directories that have parts
+  // of the tokenized filter. This does not change the metric values of the
+  // rolled up parent (filtering a file out does not remove its runtime from
+  // the directory)
+  string filter = 5;
+  // The order in which to return the results
+  SortBy sort = 6;
+  // Metrics to fetch.
+  // This is required.  If no metrics are specified an error is returned.
+  repeated MetricType metrics = 7 [ (google.api.field_behavior) = REQUIRED ];
+}
+
+message FetchDirectoryMetricsResponse {
+  // An array of directories and files belonging to the requested parent
+  // directory
+  repeated DirectoryNode nodes = 1;
+}
+
+enum DirectoryNodeType {
+  UNKNOWN_NODE_TYPE = 0;
+  DIRECTORY = 1;
+  FILENAME = 2;
+}
+
+message DirectoryNode {
+  // The full path name of the directory or file
+  string id = 1;
+  // Whether the node is a file or directory
+  DirectoryNodeType type = 2;
+  // The display name of the node
+  string name = 3;
+  // Rollup metrics for the directory node. This is a map of dates
+  // (in YYYY-MM-DD format) to an array of measured metrics.
+  map<string, TestMetricsArray> metrics = 4;
+}

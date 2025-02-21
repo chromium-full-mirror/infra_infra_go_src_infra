@@ -1,0 +1,46 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package main
+
+import (
+	"go.chromium.org/luci/appengine/gaemiddleware"
+	"go.chromium.org/luci/common/logging"
+	"go.chromium.org/luci/config/server/cfgmodule"
+	"go.chromium.org/luci/server"
+	"go.chromium.org/luci/server/gaeemulation"
+	"go.chromium.org/luci/server/module"
+	"go.chromium.org/luci/server/router"
+	"go.chromium.org/luci/server/tq"
+
+	"go.chromium.org/infra/appengine/rubber-stamper/cron"
+	"go.chromium.org/infra/appengine/rubber-stamper/internal/gerrit"
+)
+
+func main() {
+	modules := []module.Module{
+		cfgmodule.NewModuleFromFlags(),
+		gaeemulation.NewModuleFromFlags(),
+		tq.NewModuleFromFlags(),
+	}
+
+	server.Main(nil, modules, func(srv *server.Server) error {
+		var err error
+		srv.Context = gerrit.Setup(srv.Context)
+		if err != nil {
+			logging.Errorf(srv.Context, "failed to set up ErrorReporting client")
+		}
+
+		basemw := router.NewMiddlewareChain()
+		srv.Routes.GET("/_cron/scheduler", basemw.Extend(gaemiddleware.RequireCron), func(c *router.Context) {
+			cron.ScheduleReviews(c)
+		})
+
+		srv.Routes.GET("/_cron/update-config", basemw.Extend(gaemiddleware.RequireCron), func(c *router.Context) {
+			cron.UpdateConfig(c)
+		})
+
+		return nil
+	})
+}

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="/bower_components/webcomponentsjs/webcomponents-loader.js"></script>
+<script src="/bower_components/web-component-tester/browser.js"></script>
+<link rel="import" href="/bower_components/iron-test-helpers/iron-test-helpers.html">
+<link rel="import" href="/elements/som-drawer/som-drawer.html">
+<test-fixture id="basic">
+  <template>
+    <som-drawer></som-drawer>
+  </template>
+</test-fixture>
+<script>
+(function() {
+  'use strict';
+
+  suite('basic tests', function() {
+    var element;
+    var stubbedFetch;
+    var responseHeaders = {
+        json: {'Content-Type': 'application/json'},
+        text: {'Content-Type': 'text/html'},
+    };
+
+    setup(function() {
+      element = fixture('basic');
+      stubbedFetch = sinon.stub(window, 'fetch');
+
+      element.trees = {
+        'name': 'chromium',
+        'display_name': 'Chromium',
+      };
+    });
+
+    teardown(function() {
+      stubbedFetch.restore();
+    });
+
+    test('shows an error if sheriff loading failed', function(done) {
+      stubbedFetch.onCall(0).returns(Promise.reject(new Error('fail')));
+      stubbedFetch.onCall(1).returns(Promise.reject(new Error('fail')));
+
+      element._rotations = {
+        'chromium': [
+          {
+            name: 'Chromium Sheriff',
+            url: 'https://chrome-ops-rotation-proxy.appspot.com/current/oncallator:chrome-build-sheriff',
+          },
+        ],
+      };
+      element.tree = {'name': 'chromium'};
+
+      flush(function () {
+        assert.equal(2, element._currentOncalls.length);
+        assert.deepEqual([{
+          name: 'Trooper',
+          people: 'Error: fail',
+          isTrooper: true,
+        }, {
+          name: 'Chromium Sheriff',
+          people: 'Error: fail',
+          isTrooper: false,
+        }], element._currentOncalls);
+        done();
+      });
+    });
+
+    test('shows "Loading" before sheriffs are loaded', function(done) {
+      stubbedFetch.onCall(0).returns(new Promise(function() {}));
+      stubbedFetch.onCall(1).returns(new Promise(function() {}));
+
+      element._rotations = {
+        'chromium': [
+          {
+            name: 'Chromium Sheriff',
+            url: 'https://chrome-ops-rotation-proxy.appspot.com/current/oncallator:chrome-build-sheriff',
+          },
+        ],
+      };
+      element.tree = {'name': 'chromium'};
+
+      flush(function () {
+        assert.equal(2, element._currentOncalls.length);
+        assert.deepEqual([{
+          name: 'Trooper',
+          people: 'Loading...',
+          isTrooper: true,
+        }, {
+          name: 'Chromium Sheriff',
+          people: 'Loading...',
+          isTrooper: false,
+        }], element._currentOncalls);
+        done();
+      });
+    });
+
+    test('computes sheriffs from rotation-proxy JSON', function(done) {
+      const body = {emails: ['foo@example.com', 'bar@example.com']};
+      const init = {status: 200, headers: responseHeaders.json};
+      const response = new window.Response(JSON.stringify(body), init);
+      stubbedFetch.onCall(0).returns(new Promise(function() {}));
+      stubbedFetch.onCall(1).returns(Promise.resolve(response));
+
+      element._rotations = {
+        'chromium': [
+          {
+            name: 'Chromium Sheriff',
+            url: 'https://chrome-ops-rotation-proxy.appspot.com/current/oncallator:chrome-build-sheriff',
+          },
+        ],
+      };
+      element.tree = {'name': 'chromium'};
+
+      flush(function () {
+        assert.equal(2, element._currentOncalls.length);
+        assert.deepEqual({
+          name: 'Chromium Sheriff',
+          people: 'foo@example.com, bar@example.com',
+          isTrooper: false,
+        }, element._currentOncalls[1]);
+        done();
+      });
+    });
+
+    test('computes sheriffs from rotation-proxy JSON with nobody oncall', function(done) {
+      const body = {emails: []};
+      const init = {status: 200, headers: responseHeaders.json};
+      const response = new window.Response(JSON.stringify(body), init);
+      stubbedFetch.onCall(0).returns(new Promise(function() {}));
+      stubbedFetch.onCall(1).returns(Promise.resolve(response));
+
+      element._rotations = {
+        'chromium': [
+          {
+            name: 'Chromium Sheriff',
+            url: 'https://chrome-ops-rotation-proxy.appspot.com/current/oncallator:chrome-build-sheriff',
+          },
+        ],
+      };
+      element.tree = {'name': 'chromium'};
+
+      flush(function () {
+        assert.equal(2, element._currentOncalls.length);
+        assert.deepEqual({
+          name: 'Chromium Sheriff',
+          people: '',
+          isTrooper: false,
+        }, element._currentOncalls[1]);
+        done();
+      });
+    });
+
+    test('shows trooper only for tree with no rotations', function(done) {
+      const body = {emails: ['foo@example.com', 'bar@example.com']};
+      const init = {status: 200, headers: responseHeaders.json};
+      const response = new window.Response(JSON.stringify(body), init);
+      stubbedFetch.onCall(0).returns(Promise.resolve(response));
+
+      element._rotations = {
+        'chromium': [],
+      };
+      element._currentOncalls = ['dummy'];
+
+      element.tree = {'name': 'empty'};
+
+      flush(function () {
+        assert.equal(1, element._currentOncalls.length);
+        assert.deepEqual({
+          name: 'Trooper',
+          people: 'foo@example.com, bar@example.com',
+          isTrooper: true,
+        }, element._currentOncalls[0]);
+        done();
+      });
+    });
+  });
+})();
+</script>

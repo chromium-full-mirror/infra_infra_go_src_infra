@@ -1,0 +1,16 @@
+// Copyright 2023 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package healthpb;
+
+option go_package = "go.chromium.org/infra/cr_builder_health/healthpb";
+
+import "google/protobuf/timestamp.proto";
+
+message InputParams {
+  google.protobuf.Timestamp date = 1;  // which date to generate health for
+  bool dryRun = 2;  // don't write to database, don't rpc, just calculate and print health
+}

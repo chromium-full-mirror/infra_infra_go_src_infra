@@ -1,0 +1,117 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by the Apache v2.0 license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package rubber_stamper.config;
+
+option go_package = "go.chromium.org/infra/appengine/rubber-stamper/config";
+
+// Config is the service-wide configuration data for rubber-stamper.
+message Config {
+  // A map stores configs for all the Gerrit hosts, where keys are names of
+  // hosts (e.g. "chromium" or "chrome-internal"), values are corresponding
+  // configs.
+  map<string, HostConfig> host_configs = 1;
+  // A global default time window for clean reverts and cherry picks. The
+  // format is the same as that of CleanRevertPattern.time_window.
+  string default_time_window = 2;
+}
+
+// HostConfig describes the config to be used for a Gerrit host.
+message HostConfig {
+  // A map stores config for repositories, where keys are names of repos (e.g.
+  // "chromium/src", "go.chromium.org/infra/infra") and values are corresponding configs.
+  map<string, RepoConfig> repo_configs = 1;
+  // The default valid time window for clean reverts. This time window is
+  // applied at a host-level and the time window configured in repo-level
+  // configs will override this one. The format is the same as that of
+  // CleanRevertPattern.time_window.
+  string clean_revert_time_window = 2;
+  // The default valid time window for clean cherry-picks. This time window is
+  // applied at a host-level and the time window configured in repo-level
+  // configs will override this one. The format is the same as that of
+  // CleanCherryPickPattern.time_window.
+  string clean_cherry_pick_time_window = 3;
+
+  // RepoRegexpConfigPair is a pair of repository name's regular expression
+  // and the corresponding RepoConfig. It makes maintenance work easier, as
+  // there are repositories which have some sort of naming pattern that should
+  // share the same RepoConfig.
+  //
+  // When a repository can be matched by both the exact match and regular
+  // expression, Rubber Stamper will use the result from the exact match.
+  //
+  // When there are multiple regular expression matches, the first match, which
+  // is decided by their locations in the config, will be selected.
+  message RepoRegexpConfigPair {
+    // The key is a regular expression of repository names.
+    string key = 1;
+    // The value is the corresponding RepoConfig that should be applied to
+    // those repos.
+    RepoConfig value = 2;
+  }
+  // An array stores configs for repositories whose names are contained in
+  // regular expressions.
+  repeated RepoRegexpConfigPair repo_regexp_configs = 4;
+}
+
+// RepoConfig describes the config to be used for a Gerrit repository.
+message RepoConfig {
+  BenignFilePattern benign_file_pattern = 1;
+  CleanRevertPattern clean_revert_pattern = 2;
+  CleanCherryPickPattern clean_cherry_pick_pattern = 3;
+
+  // Whether Rubber Stamper is disabled in this repository.
+  bool disabled = 4;
+}
+
+// BenignFilePattern describes pattern of changes to benign files.
+message BenignFilePattern {
+  // file_extension_map has been deprecated.
+  reserved 1;
+  // Paths contains the information that which files are allowed and which are
+  // not. The paths is parsed as lines in a .gitignore document, and therefore
+  // should follows rules listed in https://git-scm.com/docs/gitignore.
+  repeated string paths = 2;
+}
+
+// CleanRevertPattern describes pattern of clean reverts.
+message CleanRevertPattern {
+  // The length of time in <int><unit> form. Reverts need to be within this
+  // time_window to be valid.
+  // Valid units are "s", "m", "h", "d", meaning "seconds", "minutes",
+  // "hours", "days" respectively.
+  string time_window = 1;
+
+  // Paths that must have a human reviewer.
+  repeated string excluded_paths = 2;
+}
+
+message CleanCherryPickPattern {
+  // The length of time in <int><unit> form. Has the same format as the
+  // `time_window` in CleanRevertPattern.
+  string time_window = 1;
+
+  // Paths that must have a human reviewer.
+  repeated string excluded_paths = 2;
+
+  // FileCheckBypassRule provides a way to bypass the rule: "the current
+  // revision shouldn't make any file changes compared with the initial
+  // revision". It is a list of requirements, all of which must be met for
+  // Rubber-Stamper to bypass the file change rule.
+  message FileCheckBypassRule {
+    // The allowed paths of files that change between the initial revision and
+    // the current revision.
+    repeated string included_paths = 1;
+
+    // Hashtag of the CL.
+    string hashtag = 2;
+
+    // Allowed CL owners. The CL owner needs to be one of them.
+    repeated string allowed_owners = 3;
+  }
+
+  FileCheckBypassRule file_check_bypass_rule = 3;
+}

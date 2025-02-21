@@ -1,0 +1,84 @@
+service: default
+runtime: go123
+
+instance_class: F4
+
+handlers:
+- url: /bower_components
+  static_dir: bower_components
+  secure: always
+
+- url: /images
+  static_dir: images
+  secure: always
+
+- url: /elements
+  static_dir: elements
+  secure: always
+
+- url: /scripts
+  static_dir: scripts
+  secure: always
+
+- url: /test
+  static_dir: test
+  secure: always
+
+- url: /api/.*
+  script: auto
+  secure: always
+
+- url: /_cron/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /internal/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /_ah/push-handlers/.*
+  script: auto
+  login: admin
+
+- url: /google03daf1850f438695\.html
+  static_files: static/google03daf1850f438695.html
+  secure: always
+  upload: static/google03daf1850f438695.html
+
+- url: /.*
+  script: auto
+  secure: always
+
+luci_gae_vars:
+  sheriff-o-matic-staging:
+    AUTH_SERVICE_HOST: chrome-infra-auth-dev.appspot.com
+    TS_MON_ACCOUNT: app-engine-metric-publishers@prodx-mon-chrome-infra.google.com.iam.gserviceaccount.com
+    OAUTH_CLIENT_ID: 408214842030-n7qkqet08nqmsvoap6qkik6euga4v41v.apps.googleusercontent.com
+    OAUTH_CLIENT_SECRET: sm://oauth-client-secret
+    OAUTH_REDIRECT_URL: https://sheriff-o-matic-staging.appspot.com/auth/openid/callback
+    ROOT_SECRET: sm://root-secret
+    TINK_AEAD_KEY: sm://tink-aead-primary
+  sheriff-o-matic:
+    AUTH_SERVICE_HOST: chrome-infra-auth.appspot.com
+    TS_MON_ACCOUNT: app-engine-metric-publishers@prodx-mon-chrome-infra.google.com.iam.gserviceaccount.com
+    OAUTH_CLIENT_ID: 297387252952-io4k56a9uagle7rq4o8b7sclfih6136c.apps.googleusercontent.com
+    OAUTH_CLIENT_SECRET: sm://oauth-client-secret
+    OAUTH_REDIRECT_URL: https://sheriff-o-matic.appspot.com/auth/openid/callback
+    ROOT_SECRET: sm://root-secret
+    TINK_AEAD_KEY: sm://tink-aead-primary
+
+entrypoint: >
+  main
+  -auth-service-host ${AUTH_SERVICE_HOST}
+  -encrypted-cookies-client-id ${OAUTH_CLIENT_ID}
+  -encrypted-cookies-client-secret ${OAUTH_CLIENT_SECRET}
+  -encrypted-cookies-redirect-url ${OAUTH_REDIRECT_URL}
+  -encrypted-cookies-tink-aead-key ${TINK_AEAD_KEY}
+  -encrypted-cookies-required-scopes https://www.googleapis.com/auth/buganizer
+  -encrypted-cookies-expose-state-endpoint
+  -frontend-client-id ${OAUTH_CLIENT_ID}
+  -primary-tink-aead-key ${TINK_AEAD_KEY}
+  -root-secret ${ROOT_SECRET}
+  -ts-mon-account ${TS_MON_ACCOUNT}

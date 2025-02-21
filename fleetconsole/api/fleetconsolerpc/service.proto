@@ -1,0 +1,250 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package fleetconsole;
+
+option go_package = "go.chromium.org/infra/fleetconsole/api/fleetconsolerpc;fleetconsolerpc";
+
+import "google/protobuf/empty.proto";
+import "go.chromium.org/infra/fleetconsole/api/fleetconsolerpc/common_types.proto";
+
+service FleetConsole {
+  // Ping does not send or receive any information. It just checks that the service is there.
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // PingBigQuery attempts to contact BigQuery service through Fleet Console. Useful for debugging.
+  rpc PingBigQuery(PingBigQueryRequest) returns (PingBigQueryResponse);
+
+  // PingDeviceManager attempts to contact DeviceManager through Fleet Console. Useful for debugging.
+  rpc PingDeviceManager(PingDeviceManagerRequest) returns (PingDeviceManagerResponse);
+
+  // PingUfs attempts to contact UFS through Fleet Console. Useful for debugging.
+  rpc PingUfs(PingUfsRequest) returns (PingUfsResponse);
+
+  // ListDevices managed by Device Manager.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {};
+
+  // GetDeviceDimensions provides overview of devices dimensions and their values
+  rpc GetDeviceDimensions(google.protobuf.Empty) returns (GetDeviceDimensionsResponse);
+
+  // CountDevices provides a count of the devices
+  rpc CountDevices(CountDevicesRequest) returns (CountDevicesResponse) {};
+
+  // RepopulateCache repopulates the cache, meant to be triggered by cron.
+  rpc RepopulateCache(RepopulateCacheRequest) returns (RepopulateCacheResponse) {};
+
+  // PingDB attempts to establish contact with the database and does nothing else.
+  rpc PingDB(PingDBRequest) returns (PingDBResponse) {};
+
+  // CleanExit just exits the current process.
+  rpc CleanExit(CleanExitRequest) returns (CleanExitResponse) {};
+
+  // ************** RESOURCE REQUEST INSIGHTS *********************
+
+  // ListResourceRequests returns Resource Requests provided by BigQuery
+  rpc ListResourceRequests(ListResourceRequestsRequest) returns (ListResourceRequestsResponse) {};
+}
+
+// PingRequest intentionally contains nothing.
+message PingRequest {
+}
+
+// PingResponse intentionally contains nothing.
+message PingResponse {
+}
+
+// PingBigQueryRequest intentionally contains nothing.
+message PingBigQueryRequest {
+}
+
+// PingBigQueryResponse intentionally contains nothing.
+message PingBigQueryResponse {
+}
+
+// PingDeviceManagerRequest intentionally contains nothing.
+message PingDeviceManagerRequest {
+}
+
+// PingDeviceManagerResponse intentionally contains nothing.
+message PingDeviceManagerResponse {
+}
+
+// PingUfsRequest intentionally contains nothing.
+message PingUfsRequest {
+}
+
+// PingUfsResponse intentionally contains nothing.
+message PingUfsResponse {
+}
+
+message Device {
+  // In the case of VMs, device id could be the GCE instance name. For physical
+  // DUTs we use the IDs we get from UFS.
+  string id = 1;
+  // dut_id is the asset tag for a Device
+  string dut_id = 6;
+
+  DeviceAddress address = 2;
+  DeviceType type = 3;
+  DeviceState state = 4;
+
+  // // This proto contains per-DUT hardware relevant information including labels.
+  DeviceSpec device_spec = 5;
+}
+
+message DeviceAddress {
+  // IP address of the device.
+  // For physical DUTs it can be a hostname.
+  string host = 1;
+  int32 port = 2;
+}
+
+enum DeviceType {
+  DEVICE_TYPE_UNSPECIFIED = 0;
+  DEVICE_TYPE_VIRTUAL = 1;
+  DEVICE_TYPE_PHYSICAL = 2;
+}
+
+enum DeviceState {
+  DEVICE_STATE_UNSPECIFIED = 0;
+  // Default state.
+  // Device is available to be leased.
+  DEVICE_STATE_AVAILABLE = 1;
+  // Device is leased.
+  DEVICE_STATE_LEASED = 2;
+}
+
+message ListDevicesRequest {
+  // The maximum number of devices to return. The service may return fewer than
+  // this value. If unspecified, at most 50 devices will be returned.
+  int32 page_size = 1;
+
+  // A page token, received from a previous `ListDevices` call. Provide this to
+  // retrieve the subsequent page. Returns first page if omitted.
+  //
+  // When paginating, all other parameters provided to `ListDevices` must match
+  // the call that provided the page token.
+  string page_token = 2;
+
+  string order_by = 3;
+
+  // See: AIP-160 (https://google.aip.dev/160) for the syntax
+  string filter = 4;
+}
+
+message ListDevicesResponse {
+  // List of devices to be returned.
+  repeated Device devices = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page. If
+  // this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+message DeviceSpec {
+  // A map for labels used to request a matching device.
+  map<string, LabelValues> labels = 1;
+}
+
+message GetDeviceDimensionsResponse {
+  map<string, LabelValues> base_dimensions = 1;
+
+  map<string, LabelValues> labels = 2;
+}
+
+message LabelValues {
+  repeated string values = 1;
+}
+
+message CountDevicesRequest {
+  // See: AIP-160 (https://google.aip.dev/160) for the syntax
+  // Same filter format as ListDevicesRequest
+  string filter = 1;
+}
+
+message CountDevicesResponse {
+  int32 total = 1;
+
+  TaskStateCounts task_state = 2;
+  DeviceStateCounts device_state = 3;
+}
+
+message TaskStateCounts {
+  int32 busy = 1;
+  int32 idle = 2;
+}
+
+message DeviceStateCounts {
+  int32 ready = 1;
+  int32 need_manual_repair = 2;
+  int32 need_repair = 3;
+  int32 repair_failed = 4;
+}
+
+message RepopulateCacheRequest {}
+
+message RepopulateCacheResponse {}
+
+message PingDBRequest {}
+
+message PingDBResponse {}
+
+message CleanExitRequest {}
+
+message CleanExitResponse {}
+
+// ************** RESOURCE REQUEST INSIGHTS *********************
+
+message ListResourceRequestsRequest {
+  // The maximum number of Resource Requests to return. The service may return fewer than
+  // this value. If unspecified, at most 50 Resource Requests will be returned.
+  int32 page_size = 1;
+
+  // A page token, received from a previous `ListResourceRequests` call. Provide this to
+  // retrieve the subsequent page. Returns first page if omitted.
+  //
+  // When paginating, all other parameters provided to `ListResourceRequests` must match
+  // the call that provided the page token.
+  string page_token = 2;
+
+  string order_by = 3;
+
+  // See: AIP-160 (https://google.aip.dev/160) for the syntax
+  string filter = 4;
+}
+
+message ListResourceRequestsResponse {
+  // List of Resource Requests to be returned.
+  repeated ResourceRequest resource_requests = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page. If
+  // this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+message ResourceRequest {
+  // The resource name of the resource request.
+  // Format: resourceRequests/{rr_id}
+  string name = 1;
+
+  // The ID of the resource request.
+  string rr_id = 2;
+
+  // The details of the resource request.
+  string resource_details = 3;
+
+  // The procurement end date of the resource request.
+  DateOnly procurement_end_date = 4;
+
+  // The build end date of the resource request.
+  DateOnly build_end_date = 5;
+
+  // The QA end date of the resource request.
+  DateOnly qa_end_date = 6;
+
+  // The config end date of the resource request.
+  DateOnly config_end_date = 7;
+}

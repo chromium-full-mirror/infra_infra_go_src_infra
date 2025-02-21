@@ -1,0 +1,13 @@
+cron:
+- description: Import config.cfg from LUCI Config
+  url: /internal/cron/import-service-config
+  schedule: every 10 minutes
+- description: Free invalid DUT assignments
+  url: /internal/cron/free-invalid-duts
+  schedule: every 5 minutes
+- description: Prune expired drones
+  url: /internal/cron/prune-expired-drones
+  schedule: every 1 hours
+- description: Prune drained DUTs
+  url: /internal/cron/prune-drained-duts
+  schedule: every 1 hours

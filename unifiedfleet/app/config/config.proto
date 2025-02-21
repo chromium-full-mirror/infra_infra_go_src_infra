@@ -1,0 +1,184 @@
+// Copyright 2020 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package ufs.config;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/app/config";
+
+// Next Tag: 30
+// Config is the configuration data served by luci-config for this app.
+message Config {
+  string luci_config_service = 1 [deprecated=true];
+  OSNetworkConfig cros_network_config = 2;
+  string bucket_name = 3;
+  string machine_db_config_service = 4;
+  string machine_db_host = 7;
+  string cros_inventory_host = 5;
+  string self_storage_bucket = 6;
+  PubSub hart = 8;
+  string sheet_service_account = 9;
+  // The hostname of drone-queen service to push inventory to.
+  string queen_service = 10;
+  // cron job for dronequeen push.
+  // As UFS migration is over, this is no longer used.
+  bool enable_dronequeen_push = 11 [deprecated=true];
+  // cron job for Inv2 to UFS sync(MachineLSE/Asset).
+  bool disable_inv2_sync = 12;
+  // cron job for UFS to IV2(lab and stateconfig) BQ push.
+  bool enable_lab_stateconfig_push = 13;
+  // DEPRECATED. Disable use of cached ManufacturingConfig in datastore. If
+  // true, GetChromeOSDeviceData will return None for ManufacturingConfig.
+  bool disable_cached_manufacturing_config = 14 [deprecated = true];
+  // DEPRECATED. Disable use of old cached manufacturing configs from the
+  // datastore and use configs cached from HWID server instead. If true,
+  // GetChromeOSDeviceData will return None for ManufacturingConfig.
+  bool use_cached_hwid_manufacturing_config = 15 [deprecated = true];
+  // Enable generation of schedulable labels using Boxster configs.
+  bool enable_boxster_labels = 16;
+  // Service account for accessing HWID server
+  string hwid_service_account = 17;
+  // Limit for throttling traffic to HWID server
+  float hwid_service_traffic_ratio = 18;
+  // Allowed clients for UFS
+  repeated UserAgent clients = 19;
+  // Allow unrecognized clients
+  bool allow_unrecognized_clients = 20;
+  // Ownership config files
+  OwnershipConfig ownership_config = 21;
+  // RPC acls
+  repeated ACL acls = 22;
+  // Float to limit pubsub calls to a specific amount of traffic.
+  float send_messages_to_pubsub_ratio = 23;
+  // DeviceConfigs push configs
+  DeviceConfigPushConfigs device_configs_push_configs = 24;
+  // DNS resolved hostname to reach the ufs service
+  string hostname = 25;
+  // ExperimentalAPI is for determining the experimental percentage for new API
+  ExperimentalAPI experimentalAPI = 26;
+  // Groups which indicate the caller is a partner
+  repeated string partnerACLGroups = 27;
+  // Methods which have no restrictions on namespace used
+  repeated string partnerRPCAllowlist = 28;
+  // Swarming contains information about the Swarming instance that hosts the
+  // bots managed by this app.
+  Swarming swarming = 29;
+}
+
+message OSNetworkConfig {
+  string gitiles_host = 1;
+  string project = 2;
+  string branch = 3;
+
+  message OSNetworkTopology {
+    string name = 1;
+    string remote_path = 2;
+    string sheet_id = 3;
+  }
+
+  repeated OSNetworkTopology cros_network_topology = 4;
+}
+
+message OwnershipConfig {
+  // Git host where the config files should be read from. Ex: chrome-internal.googlesource.com.
+  string gitiles_host = 1;
+  // Project for the config files. Ex: infradata/config.
+  string project = 2;
+  // Git branch from which the files should be fetched. Ex: master, main etc
+  string branch = 3;
+
+  message ConfigFile {
+    // Name of the config file
+    string name = 1;
+    // Config file location in the given project
+    string remote_path = 2;
+  }
+
+  // LUCI bot config file for ENC
+  repeated ConfigFile enc_config = 4;
+
+  // LUCI UFS security config file
+  repeated ConfigFile security_config = 5;
+
+  reserved 6;
+  reserved "enable_security_config_import";
+}
+
+message PubSub {
+  string project = 1;
+  string topic = 2;
+  // Batch size for batching publish requests for asset_info update. HaRT
+  // services have been known to fail for batch_size > 100. Changing this
+  // value might disable HaRT updates.
+  uint32 batch_size = 3;
+}
+
+// Next Tag: 3
+// UserAgent is used to configure what agents can talk to UFS
+message UserAgent {
+  // Name of the user agent, Ex: shivas, pRPC
+  string name = 1;
+  // Minimum version supported by UFS
+  string version = 2;
+}
+
+message ACL {
+  // match is a regular expression to match for this ACL
+  string match = 1;
+  // groups is a list of groups that are allowed for this ACL
+  repeated string groups = 2;
+}
+
+message DeviceConfigPushConfigs {
+  // if disabled, job will be a no-op
+  bool enabled = 1;
+  // hostname of target gitiles (ex. `chrome-internal.googlesource.com`)
+  string gitiles_host = 2;
+  // project/repo name to fetch from (ex. `chromeos/infra/config)
+  string project = 3;
+  // Commit hash or branch to check out (ex. `refs/head/main`)
+  string committish = 4;
+  // Path containing the configs file (ex. `path/configs.cfg`)
+  string configs_path = 5;
+}
+
+// ExperimentalAPI is to be used to set the experimental percentages for the API
+// Each entry should be of uint32 type. Please deprecate the field once your API
+// is fully released.
+message ExperimentalAPI {
+  // ListAssetsACL determines the experimental percentage for the experiment
+  uint32 ListAssetsACL = 1;
+  // ListMachinesACL determines the experimental percentage for the experiment
+  uint32 ListMachinesACL = 2;
+  // GetMachineACL determines the experimental percentage for the experiment
+  uint32 GetMachineACL = 3;
+  // ListMachineLSEsACL determines the experimental percentage for the API
+  uint32 ListMachineLSEsACL = 4;
+  // GetAssetACL determines the experimental percentage for the API
+  uint32 GetAssetACL = 5;
+  // GetMachineLSEACL determines the experimental percentage for the API
+  uint32 GetMachineLSEACL=6;
+  // ListRacksACL determines the experimental percentage for the API
+  uint32 ListRacksACL = 7;
+  // GetRackACL determines the experimental percental for the API
+  uint32 GetRackACL = 8;
+  // GetDutStateACL determines the experimental percentage for the API
+  uint32 GetDutStateACL=9;
+  // ListDutStatesACL determines the experimental percentage for the API
+  uint32 ListDutStatesACL=10;
+}
+
+// Next Tag: 2
+// Swarming contains information about the Swarming instance for metric
+// collection.
+// Only ChromeOSSkylab bots from chromeos-swarming will be read.
+// Copied from infra/appengine/crosskylabadmin/internal/app/config/config.proto
+message Swarming {
+  // Host is the swarming instance hosting skylab bots.
+  string host = 1;
+
+  // BotPool is the swarming pool containing skylab bots.
+  string bot_pool = 2;
+}

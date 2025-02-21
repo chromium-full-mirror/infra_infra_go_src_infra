@@ -1,0 +1,195 @@
+// Copyright 2023 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package test_resources;
+
+option go_package = "go.chromium.org/infra/appengine/chrome-test-health/api";
+
+import "google/protobuf/descriptor.proto";
+import "google/api/field_behavior.proto";
+import "google/protobuf/struct.proto";
+
+service Coverage {
+  // GetProjectDefaultConfig gets the default configuration stored in the datastore
+  // required to fetch Code Coverage statistics.
+  rpc GetProjectDefaultConfig(GetProjectDefaultConfigRequest) returns (GetProjectDefaultConfigResponse);
+
+  // GetCoverageSummary takes in the config fetched using the
+  // GetProjectDefaultConfig rpc call to get the code coverage
+  // lines/percentages along with the directory structure of the project.
+  rpc GetCoverageSummary(GetCoverageSummaryRequest) returns (GetCoverageSummaryResponse);
+
+  // GetAbsoluteCoverageDataOneYear returns absolute coverage numbers for the last
+  // 365 days.
+  rpc GetAbsoluteCoverageDataOneYear(GetAbsoluteCoverageDataOneYearRequest) returns (GetAbsoluteCoverageDataOneYearResponse);
+
+  // GetIncrementalCoverageDataOneYear returns incremental coverage numbers for the last
+  // 365 days.
+  rpc GetIncrementalCoverageDataOneYear(GetIncrementalCoverageDataOneYearRequest) returns (GetIncrementalCoverageDataOneYearResponse);
+}
+
+message BuilderConfig {
+  //  Platform name. For eg: mac, linux, etc.
+  string platform = 1;
+  // Bucket name, e.g. "try". Unique within the project.
+  // Regex: ^[a-z0-9\-_.]{1,100}$
+  // Together with project, defines an ACL.
+  // See https://chromium.googlesource.com/infra/luci/luci-go/+/main/buildbucket/proto/builder_common.proto for additional details.
+  string bucket = 2;
+  // Builder name, e.g. "linux-rel". Unique within the bucket.
+  // Regex: ^[a-zA-Z0-9\-_.\(\) ]{1,128}$
+  // See https://chromium.googlesource.com/infra/luci/luci-go/+/main/buildbucket/proto/builder_common.proto for additional details.
+  string builder = 3;
+  // Display name for a platform. For eg: MacOS(C/C++/ObjC)
+  // is the UI name for platform mac.
+  string ui_name = 4;
+  // Latest git commit available for which
+  // a coverage report exists for the platform.
+  string latest_revision = 5;
+}
+
+message GetProjectDefaultConfigRequest {
+  // Luci project for which the default configuration will be fetched.
+  // For example: chromium. Each luci project is unique within a LUCI deployment.
+  // Luci project is equivalent to Buildbucket's concept of a project
+  // and requires regex match ^[a-z0-9-_]+$
+  // See https://chromium.googlesource.com/infra/luci/luci-go/+/main/buildbucket/proto/builder_common.proto for additional details.
+  string luci_project = 1 [ (google.api.field_behavior) = REQUIRED ];
+}
+
+// Default Configuration values for the specified project
+// as stored in FinditConfig entity.
+message GetProjectDefaultConfigResponse {
+  // The website host where the repo resides.
+  // E.g: chromium.googlesource.com
+  string gitiles_host = 1;
+  // Gitiles Project is the git repository. E.g: chromium/src.
+  string gitiles_project = 2;
+  // Gitiles Ref is the git branch within the project. E.g: refs/heads/main:
+  string gitiles_ref = 3;
+  // List of builder configs for which a coverage repository
+  // exists.
+  repeated BuilderConfig builder_config = 4;
+}
+
+message GetCoverageSummaryRequest {
+  // The Gitiles hostname, e.g. "chromium.googlesource.com"
+  string gitiles_host = 1;
+  // The Gitiles project name, e.g. "chromium/src"
+  string gitiles_project = 2;
+  // The Gitiles ref, e.g. "refs/heads/main"
+  string gitiles_ref = 3;
+  // The commit hash of the revision
+  string gitiles_revision = 4;
+  // Source path relative to the project root.
+  // E.g: // or /media/cast/net/rtp/frame_buffer.cc.
+  string path = 5;
+  // List of monorail components to fetch the coverage summary
+  // for.
+  // Note that either path or components must be specified to
+  // fetch the summary.
+  repeated string components = 6;
+  // Flag to fetch coverage results for unit tests only.
+  // Defaults to False, which returns all coverage results.
+  bool unit_tests_only = 7;
+  // Bucket name, e.g. "try". Unique within the project.
+  // Regex: ^[a-z0-9\-_.]{1,100}$
+  // Together with project, defines an ACL.
+  // See https://chromium.googlesource.com/infra/luci/luci-go/+/main/buildbucket/proto/builder_common.proto for additional details.
+  string bucket = 8;
+  // Builder name, e.g. "linux-rel". Unique within the bucket.
+  // Regex: ^[a-zA-Z0-9\-_.\(\) ]{1,128}$
+  // See https://chromium.googlesource.com/infra/luci/luci-go/+/main/buildbucket/proto/builder_common.proto for additional details.
+  string builder = 9;
+}
+
+// GetCoverageSummaryResponse returns the code coverage summary.
+// Note that for this API if a dir path is specified through the path
+// req param then the response will be an array of length one
+// specifying coverage stats for that dir path.
+// However, if a list of monorail components are specified through the
+// components param them the summary will have an array with each entry
+// having the summary stats for each component.
+message GetCoverageSummaryResponse {
+  // Code Coverage summary containing lines/percentage of code covered.
+  repeated google.protobuf.Struct summary = 1;
+}
+
+message GetAbsoluteCoverageDataOneYearRequest {
+  // List of source paths relative to the project root.
+  // E.g: [//, /media/cast/net/rtp/frame_buffer.cc]
+  repeated string paths = 1;
+  // List of Monorail components to fetch the coverage summary for.
+  // Note that either path or components must be specified to fetch the summary.
+  repeated string components = 2;
+  // Flag to fetch coverage results for unit tests only.
+  // Defaults to False, which returns all coverage results.
+  bool unit_tests_only = 3;
+  // Bucket name, e.g. "try". Unique within the project.
+  // Regex: ^[a-z0-9\-_.]{1,100}$
+  // Together with project, defines an ACL.
+  // See https://chromium.googlesource.com/infra/luci/luci-go/+/main/buildbucket/proto/builder_common.proto for additional details.
+  string bucket = 4;
+  // Builder name, e.g. "linux-rel". Unique within the bucket.
+  // Regex: ^[a-zA-Z0-9\-_.\(\) ]{1,128}$
+  // See https://chromium.googlesource.com/infra/luci/luci-go/+/main/buildbucket/proto/builder_common.proto for additional details.
+  string builder = 5;
+}
+
+// AbsoluteCoverage signifies absolute coverage for a given date.
+message AbsoluteCoverage {
+  // Date is of the format "YYYY-MM-DD"
+  string date = 1;
+  // Number of lines that are covered
+  int64 lines_covered = 2;
+  // Total number of lines
+  int64 total_lines = 3;
+}
+
+// GetAbsoluteCoverageDataOneYearResponse returns the absolute coverage trends.
+message GetAbsoluteCoverageDataOneYearResponse {
+  // Each item of this list signifies Absolute Coverage percentage for a
+  // particular date.
+  repeated AbsoluteCoverage reports = 1;
+}
+
+message GetIncrementalCoverageDataOneYearRequest {
+  // List of source paths relative to the project root.
+  // E.g: [//, //media/cast/net/rtp/frame_buffer.cc]
+  repeated string paths = 1;
+  // Flag to fetch incremental coverage results for unit tests only.
+  // Defaults to False, which returns all coverage results.
+  bool unit_tests_only = 2;
+}
+
+// IncrementalCoverage captures the code coverage rate from CLs for a given set
+// of paths. On a given day, multiple changes may edit the same file, resulting
+// in several incremental reports for that file path. Each change may also
+// generate multiple reports. IncrementalCoverage reports the sum of unique
+// reports per CL per day. The latest report (and thus data from the latest patchset)
+// is used per CL. For example, if we have a file //test.cc modified
+// by CL1 and CL2, and CL2 has PS1, PS2 and PS3, IncrementalCoverage is the
+// aggregate of the reports generated by CL1 PS1 + CL2 PS3.
+message IncrementalCoverage {
+  // Date is of the format "YYYY-MM-DD"
+  string date = 1;
+  // file_changes_covered field signifies the number of file changes that are
+  // incrementally covered on the date. In order for a file to be counted as
+  // incrementally covered, the incremental coverage on it must cross a
+  // threshold of 70%. This 70% number is what we officially use to block CLs
+  // if below this threshold. Take a look here:
+  // http://shortn/_50L07WgOVu
+  int64 file_changes_covered = 2;
+  // Total number of file changes made on the date
+  int64 total_file_changes = 3;
+}
+
+// GetIncrementalCoverageDataOneYearResponse returns the incremental coverage data.
+message GetIncrementalCoverageDataOneYearResponse {
+  // Each item of this list signifies percentage of file changes which are
+  // incrementally covered for a particular date.
+  repeated IncrementalCoverage reports = 1;
+}

@@ -1,0 +1,68 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Copied from https://source.corp.google.com/piper///depot/google3/java/com/google/chrome/crosbuilds/backend/hartapi/proto/pubsub/assetinfo/assetinfo.proto
+// and edited
+//TODO(b/297076502): Automate changes with Copybara
+syntax = "proto3";
+
+package unifiedfleet.api.v1.models;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/api/v1/models;ufspb";
+
+import "google/api/field_behavior.proto";
+import "go.chromium.org/infra/unifiedfleet/api/v1/models/chassis_x.proto";
+
+message AssetInfo {
+  string asset_tag = 1;
+  // User not allowed to update this field. SSW will update this field.
+  string serial_number = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string cost_center = 3;
+  string google_code_name = 4;
+  string model = 5;
+  string build_target = 6;
+  string reference_board = 7;
+  string ethernet_mac_address = 8;
+  // User not allowed to update this field. SSW will update this field.
+  string sku = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string phase = 10;
+  // User not allowed to update this field. SSW will update this field.
+  string hwid = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string gpn = 12;
+  string reference_design = 13;
+  string product_status = 14;
+  bool fingerprint_sensor = 15;
+  double hw_x_compliance_version = 16;
+  bool touch_screen = 17;
+  bool is_cbx = 18;
+  ChassisXBrandType cbx_feature_type = 19;
+  bool is_mixed_x = 20;
+  bool has_wifi_bt = 21;
+  string wifi_bluetooth = 22;
+}
+
+message AssetInfoRequest {
+  // Required. Asset tag(s) to lookup.
+  repeated string asset_tags = 1;
+}
+
+message AssetInfoResponse {
+  // Indicator of whether the request call succeed or not.
+  RequestStatus request_status = 1;
+  // A list of asset info retrieved from Hart.
+  repeated AssetInfo assets = 2;
+  // A list of asset tags not found in Corporate Asset Management platform.
+  repeated string missing_asset_tags = 3;
+  // A list of asset tags whose part number not found in Hart.
+  repeated string failed_asset_tags = 4;
+}
+
+//TODO(anushruth): Use 0 as Undefined inline with https://google.aip.dev/126
+enum RequestStatus {
+  OK = 0;
+  INVALID_MESSAGE = 1;
+  SERVER_ERROR = 2;
+  NO_ASSET_TAG = 3;
+  NO_GPN = 4;
+}

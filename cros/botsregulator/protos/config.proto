@@ -1,0 +1,31 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+option go_package = "go.chromium.org/infra/cros/botsregulator/protos;protos";
+
+package protos;
+
+message Migration {
+    Config config = 1;
+}
+
+message Config {
+    int32 min_cloudbots_percentage = 1;
+    int32 min_low_risk_models_percentage = 2;
+    repeated string low_risk_models = 3;
+    repeated string exclude_duts = 4;
+    repeated string exclude_pools = 5;
+    repeated Override overrides = 6;
+    int32 min_large_memory_percentage = 7;
+    repeated Override large_memory_overrides = 8;
+    int32 canary_percentage = 9;
+}
+
+message Override {
+    string board = 1;
+    string model = 2;
+    int32 percentage = 3;
+}

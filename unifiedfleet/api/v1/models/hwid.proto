@@ -1,0 +1,46 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
+// Copied from google3/google/internal/chromeos/hwid/v2/hwid_service.proto
+
+syntax = "proto3";
+
+package unifiedfleet.api.v1.models;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/api/v1/models;ufspb";
+
+import "google/api/field_behavior.proto";
+
+// The response message for `HwidService.GetDutLabel`.
+message GetDutLabelResponse {
+  // The DUT labels decoded from the HWID string.
+  DutLabel dut_label = 1;
+}
+
+// A set of labels representing the features of the device, can be revealed
+// by decoding the HWID string.
+message DutLabel {
+  // Possible labels in the labels field.
+  repeated string possible_labels = 1;
+
+  // All labels extracted from the HWID string.
+  message Label {
+    // Name of the label, will always exist in the field of `possible_labels`.
+    string name = 1 [(google.api.field_behavior) = REQUIRED];
+    // The value of this label.
+    string value = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+  repeated Label labels = 2;  // NOLINT
+}
+
+message HwidData {
+  string sku = 1;
+  string variant = 2;
+  string hwid = 3;
+  DutLabel dut_label = 4;
+  bool stylus = 5;
+  bool touchpad = 6;
+  bool touchscreen = 7;
+  string racc_enabled_status = 8;
+}

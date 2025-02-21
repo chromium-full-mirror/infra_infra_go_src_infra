@@ -1,0 +1,53 @@
+// Copyright 2020 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/maruel/subcommands"
+
+	"go.chromium.org/luci/common/cli"
+	"go.chromium.org/luci/common/flag/fixflagpos"
+	"go.chromium.org/luci/common/logging/gologger"
+)
+
+func main() {
+	app := makeApp(func(ctx context.Context) context.Context {
+		logCfg := gologger.LoggerConfig{
+			Format: `%{message}`,
+			Out:    os.Stderr,
+		}
+		return logCfg.Use(ctx)
+	})
+	os.Exit(runApp(app, os.Args[1:]))
+}
+
+func runApp(app *cli.Application, args []string) int {
+	return subcommands.Run(app, fixflagpos.FixSubcommands(args))
+}
+
+func makeApp(ctxFunc func(context.Context) context.Context) *cli.Application {
+	return &cli.Application{
+		Name:    "result_adapter",
+		Title:   "A CLI tool to convert test results to ResultSink native format then upload them to ResultDB via ResultSink.",
+		Context: ctxFunc,
+		Commands: []*subcommands.Command{
+			cmdCrosTestResult(),
+			cmdGo(),
+			cmdGtest(),
+			cmdGtestJson(),
+			cmdJSON(),
+			cmdNative(),
+			cmdSingle(),
+			cmdTast(),
+			cmdSkylabTestRunner(),
+
+			{}, // a separator
+			subcommands.CmdHelp,
+		},
+	}
+}

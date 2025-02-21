@@ -1,0 +1,16 @@
+# Do not inherit parents from top-level OWNERS
+set noparent
+
+# CrOS Infra Test Scheduling & Execution Team
+include chromiumos/owners:v1:/infra/OWNERS.tse
+
+
+# FTE Contributors
+dbeckett@chromium.org
+dbeckett@google.com
+
+# CTRP Team Contributors
+jkusuma@google.com
+jlcruz@google.com
+yasinsonui@google.com
+zhihuixie@google.com

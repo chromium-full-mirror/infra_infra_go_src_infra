@@ -1,0 +1,3 @@
+queue:
+  - name: monitoring
+    rate: 100/s

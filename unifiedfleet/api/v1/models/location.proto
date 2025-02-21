@@ -1,0 +1,182 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package unifiedfleet.api.v1.models;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/api/v1/models;ufspb";
+
+import "google/api/resource.proto";
+
+// Location of the asset(Rack/Machine) in the lab
+// For Browser machine, lab and rack are the only field to fill in.
+// The fine-grained location is mainly for OS machine as we care about rack,
+// row, shelf.
+message Location {
+  reserved 1;
+  reserved "lab";
+  // Each lab has many aisles.
+  // This field refers to the aisle number/name in the lab.
+  string aisle = 2;
+  // Each aisle has many rows.
+  // This field refers to the row number/name in the aisle.
+  string row = 3;
+  // Each row has many racks.
+  // This field refers to the rack number/name in the row.
+  string rack = 4 [(google.api.resource_reference) = {
+    type: "unified-fleet-system.appspot.com/Rack"
+  }];
+  // The position of the rack in the row.
+  string rack_number = 5;
+  // Each rack has many shelves.
+  // This field refers to the shelf number/name in the rack.
+  string shelf = 6;
+  // Each shelf has many positions where assets can be placed.
+  // This field refers to the position number/name in the shelf
+  string position = 7;
+
+  // A string descriptor representing location. This can be to
+  // store barcode values for location or user defined names.
+  string barcode_name = 8;
+
+  // Different zones in the chrome org. Required.
+  Zone zone = 9;
+
+  // CabinetAssetID of the rack/cabinet the asset is mounted in.
+  // This is used as a unique identifier in Nlyte for cabinets.
+  int32 rack_id = 10;
+
+  // LocationGroupID of the current lab in Nlyte.
+  int32 lab_id = 11;
+
+  // Format: “Room_Name (City,Building,Floor)”. Lab is interchangeable with
+  // Room.
+  string full_location_name = 12;
+}
+
+// Lab refers to the different Labs under chrome org
+// More labs to be added later if needed
+// Next tag: 12
+enum Lab {
+  LAB_UNSPECIFIED = 0;
+  LAB_CHROME_ATLANTA = 1;
+  LAB_CHROMEOS_SANTIAM = 2;
+  LAB_CHROMEOS_DESTINY = 3;
+  LAB_CHROMEOS_PROMETHEUS = 4;
+  LAB_CHROMEOS_ATLANTIS = 5;
+  LAB_CHROMEOS_LINDAVISTA = 6;
+  LAB_DATACENTER_ATL97 = 7;
+  LAB_DATACENTER_IAD97 = 8;
+  LAB_DATACENTER_MTV96 = 9;
+  LAB_DATACENTER_MTV97 = 10;
+  LAB_DATACENTER_FUCHSIA = 11;
+}
+
+// Zone refers to the different network zones under chrome org
+// Next tag: 98
+enum Zone {
+  ZONE_UNSPECIFIED = 0;
+  ZONE_ATLANTA = 1;             // "atl" Building ? Room ?
+  ZONE_CHROMEOS1 = 2;           // "chromeos1" // US-MTV-1600 // Santiam
+  ZONE_CHROMEOS2 = 3 [deprecated = true]; // DEPRECATED "chromeos2" // US-MTV-2081 // Atlantis
+  ZONE_CHROMEOS3 = 4;           // "chromeos3" // US-MTV-946 // Lindavista
+  ZONE_CHROMEOS4 = 5 [deprecated = true]; // DEPRECATED "chromeos4" // US-MTV-2081 // Destiny
+  ZONE_CHROMEOS5 = 6;           // "chromeos5" // US-MTV-946 // Lindavista
+  ZONE_CHROMEOS6 = 7;           // "chromeos6" // US-MTV-2081 // Prometheus
+  ZONE_CHROMEOS7 = 8;           // "chromeos7" // US-MTV-946 // Lindavista
+  ZONE_CHROMEOS15 = 10;         // "chromeos15" // US-MTV-946 // Lindavista
+  ZONE_ATL97 = 11;              // "atl97" //  US-ATL-MET1 // Room ?
+  ZONE_IAD97 = 12;              // "iad97" // Building ? Room ?
+  ZONE_MTV96 = 13;              // "mtv96" // US-MTV-41 // 1-1M0
+  ZONE_MTV97 = 14;              // "mtv97" // US-MTV-1950 // 1-144
+  ZONE_FUCHSIA = 15;            // "lab01" // Building ? Room ?
+  ZONE_CROS_GOOGLER_DESK = 16;  // "desk" // For cros assets given to googlers
+  ZONE_MTV1950_TESTING =
+      17;  // "mtv1950" // temporary zone for testing cros assets in gTransit
+  ZONE_SATLAB = 18;  // "satlab" // zone for satlab duts
+  ZONE_BROWSER_GOOGLER_DESK =
+      19;                    // "desk" // for browser assets given to googlers
+  ZONE_JETSTREAM_B946 = 20;  // US-MTV-946-1-1E1
+  ZONE_SFO36_NETWORK = 22;   // "sfo36_network" // US-PAO-EM25 // Room 115
+  ZONE_SFO36_BROWSER = 23;   // "sfo36_browser" // US-PAO-EM25 // Room 105
+  ZONE_SFO36_OS = 24;        // "sfo36_os" // US-PAO-EM25 // Room 114, 116, 117
+  ZONE_SFO36_OS_CHROMIUM = 21; // "sfo36_os_chromium" // US-PAO-EM25 // CRE199-204
+  ZONE_SFP_SFPTEST = 25;    // "sfp_sfptest" // Zone for SfP assets for partner `sfptest`
+  ZONE_IAD65_OS = 26;       // "iad65_os" // Zone for datacenter site IAD65
+  ZONE_SFP_CROSTEST = 27; // "sfp_crostest" // Zone for SfP assets for partner `crostest`
+  ZONE_SFP_2 = 28; // "sfp_2" // Zone for SfP assets for partner // Testhaus ID:2
+  ZONE_SFP_6 = 29; // "sfp_6" // Zone for SfP assets for partner // Testhaus ID:6
+  ZONE_SFP_4 = 30; // "sfp_4" // Zone for SfP assets for partner // Testhaus ID:4;
+  ZONE_SFP_9 = 31; // "sfp_9" // Zone for SfP assets for partner // Testhaus ID:9;
+  ZONE_SFP_10 = 32; // "sfp_10" // Zone for SfP assets for partner // Testhaus ID:10;
+  ZONE_SFP_13 = 33; // "sfp_13" // Zone for SfP assets for partner // Testhaus ID:13;
+  ZONE_SFP_14 = 34; // "sfp_14" // Zone for SfP assets for partner // Testhaus ID:14;
+  ZONE_SFP_15 = 35; // "sfp_15" // Zone for SfP assets for partner // Testhaus ID:15;
+  ZONE_SFP_16 = 36; // "sfp_16" // Zone for SfP assets for partner // Testhaus ID:16;
+  ZONE_SFP_17 = 37; // "sfp_17" // Zone for SfP assets for partner // Testhaus ID:17;
+  ZONE_SFP_20 = 38; // "sfp_20" // Zone for SfP assets for partner // Testhaus ID:20;
+  ZONE_SFP_21 = 39; // "sfp_21" // Zone for SfP assets for partner // Testhaus ID:21;
+  ZONE_SFP_22 = 40; // "sfp_22" // Zone for SfP assets for partner // Testhaus ID:22;
+  ZONE_SFP_23 = 41; // "sfp_23" // Zone for SfP assets for partner // Testhaus ID:23;
+  ZONE_SFP_24 = 42; // "sfp_24" // Zone for SfP assets for partner // Testhaus ID:24;
+  // ZONE_SFP_25 - intentionally skipped, botched partner setup
+  ZONE_SFP_26 = 43; // "sfp_26" // Zone for SfP assets for partner // Testhaus ID:26;
+  ZONE_SFP_27 = 44; // "sfp_27" // Zone for SfP assets for partner // Testhaus ID:27;
+  ZONE_SFP_28 = 45; // "sfp_28" // Zone for SfP assets for partner // Testhaus ID:28;
+  ZONE_SFP_29 = 46; // "sfp_29" // Zone for SfP assets for partner // Testhaus ID:29;
+  ZONE_SFP_30 = 47; // "sfp_30" // Zone for SfP assets for partner // Testhaus ID:30;
+  ZONE_SFP_31 = 48; // "sfp_31" // Zone for SfP assets for partner // Testhaus ID:31;
+  ZONE_SFP_32 = 49; // "sfp_32" // Zone for SfP assets for partner // Testhaus ID:32;
+  ZONE_SFP_33 = 50; // "sfp_33" // Zone for SfP assets for partner // Testhaus ID:33;
+  ZONE_SFP_34 = 51; // "sfp_34" // Zone for SfP assets for partner // Testhaus ID:34;
+  ZONE_SFP_35 = 52; // "sfp_35" // Zone for SfP assets for partner // Testhaus ID:35;
+  ZONE_SFP_36 = 53; // "sfp_36" // Zone for SfP assets for partner // Testhaus ID:36;
+  ZONE_SFP_37 = 54; // "sfp_37" // Zone for SfP assets for partner // Testhaus ID:37;
+  ZONE_SFP_38 = 55; // "sfp_38" // Zone for SfP assets for partner // Testhaus ID:38;
+  ZONE_SFP_39 = 56; // "sfp_39" // Zone for SfP assets for partner // Testhaus ID:39;
+  ZONE_SFP_40 = 57; // "sfp_40" // Zone for SfP assets for partner // Testhaus ID:40;
+  ZONE_SFP_41 = 58; // "sfp_41" // Zone for SfP assets for partner // Testhaus ID:41;
+  ZONE_SFP_42 = 59; // "sfp_42" // Zone for SfP assets for partner // Testhaus ID:42;
+  ZONE_SFP_43 = 60; // "sfp_43" // Zone for SfP assets for partner // Testhaus ID:43;
+  ZONE_SFP_44 = 61; // "sfp_44" // Zone for SfP assets for partner // Testhaus ID:44;
+  ZONE_SFP_45 = 62; // "sfp_45" // Zone for SfP assets for partner // Testhaus ID:45;
+  ZONE_SFP_46 = 63; // "sfp_46" // Zone for SfP assets for partner // Testhaus ID:46;
+  ZONE_SFP_47 = 64; // "sfp_47" // Zone for SfP assets for partner // Testhaus ID:47;
+  ZONE_SFP_48 = 65; // "sfp_48" // Zone for SfP assets for partner // Testhaus ID:48;
+  ZONE_SFP_49 = 66; // "sfp_49" // Zone for SfP assets for partner // Testhaus ID:49;
+  ZONE_SFP_50 = 67; // "sfp_50" // Zone for SfP assets for partner // Testhaus ID:50;
+  ZONE_SFP_51 = 68; // "sfp_51" // Zone for SfP assets for partner // Testhaus ID:51;
+  ZONE_SFP_52 = 69; // "sfp_52" // Zone for SfP assets for partner // Testhaus ID:52;
+  ZONE_SFP_53 = 70; // "sfp_53" // Zone for SfP assets for partner // Testhaus ID:53;
+  ZONE_SFP_54 = 71; // "sfp_54" // Zone for SfP assets for partner // Testhaus ID:54;
+  ZONE_SFP_55 = 72; // "sfp_55" // Zone for SfP assets for partner // Testhaus ID:55;
+  ZONE_SFP_56 = 73; // "sfp_56" // Zone for SfP assets for partner // Testhaus ID:56;
+  ZONE_SFP_57 = 74; // "sfp_57" // Zone for SfP assets for partner // Testhaus ID:57;
+  ZONE_SFP_58 = 75; // "sfp_58" // Zone for SfP assets for partner // Testhaus ID:58;
+  ZONE_SFP_59 = 76; // "sfp_59" // Zone for SfP assets for partner // Testhaus ID:59;
+  ZONE_SFP_60 = 77; // "sfp_60" // Zone for SfP assets for partner // Testhaus ID:60;
+  // ZONE_SFP_61 - intentionally skipped, botched partner setup
+  ZONE_SFP_62 = 78; // "sfp_62" // Zone for SfP assets for partner // Testhaus ID:62;
+  ZONE_SFP_63 = 79; // "sfp_63" // Zone for SfP assets for partner // Testhaus ID:63;
+  ZONE_SFP_64 = 80; // "sfp_64" // Zone for SfP assets for partner // Testhaus ID:64;
+  ZONE_SFP_65 = 81; // "sfp_65" // Zone for SfP assets for partner // Testhaus ID:65;
+  ZONE_SFP_66 = 82; // "sfp_66" // Zone for SfP assets for partner // Testhaus ID:66;
+  ZONE_SFP_67 = 83; // "sfp_67" // Zone for SfP assets for partner // Testhaus ID:67;
+  ZONE_SFP_68 = 84; // "sfp_68" // Zone for SfP assets for partner // Testhaus ID:68;
+  ZONE_SFP_69 = 85; // "sfp_69" // Zone for SfP assets for partner // Testhaus ID:69;
+  ZONE_SFP_70 = 86; // "sfp_70" // Zone for SfP assets for partner // Testhaus ID:70;
+  ZONE_SFP_71 = 87; // "sfp_71" // Zone for SfP assets for partner // Testhaus ID:71;
+  ZONE_SFP_72 = 88; // "sfp_72" // Zone for SfP assets for partner // Testhaus ID:72;
+  ZONE_SFP_73 = 89; // "sfp_73" // Zone for SfP assets for partner // Testhaus ID:73;
+  // ZONE_SFP_74 - intentionally skipped, botched partner setup
+  ZONE_SFP_75 = 90; // "sfp_75" // Zone for SfP assets for partner // Testhaus ID:75;
+  ZONE_SFP_76 = 91; // "sfp_76" // Zone for SfP assets for partner // Testhaus ID:76;
+  ZONE_SFP_77 = 92; // "sfp_77" // Zone for SfP assets for partner // Testhaus ID:77;
+  ZONE_SFP_78 = 93; // "sfp_78" // Zone for SfP assets for partner // Testhaus ID:78;
+  ZONE_SFP_79 = 94; // "sfp_79" // Zone for SfP assets for partner // Testhaus ID:79;
+  ZONE_SFP_80 = 95; // "sfp_80" // Zone for SfP assets for partner // Testhaus ID:80;
+  ZONE_SFP_81 = 96; // "sfp_81" // Zone for SfP assets for partner // Testhaus ID:81;
+  ZONE_SFP_82 = 97; // "sfp_82" // Zone for SfP assets for partner // Testhaus ID:82;
+}

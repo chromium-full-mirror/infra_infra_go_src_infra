@@ -1,0 +1,95 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package config
+
+import (
+	"time"
+
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
+)
+
+// Actions to start and stop cft containers.
+func addCrosCftContainers(actions map[string]*Action) {
+	am := map[string]*Action{
+		"CrosToolRunner is up": {
+			Docs: []string{
+				"Verify that cros-tool-runner service is up and running, ",
+				"the tool expected to start as part of system preparation.",
+			},
+			ExecName: "ctr_is_up",
+		},
+		"Start ADB-base": {
+			Docs: []string{
+				"Pull and run adb-base container",
+			},
+			Conditions: []string{
+				"Do not run on Mobile Harness box",
+				"Do not run on CloudBot",
+				"CrosToolRunner is up",
+			},
+			ExecName:    "ctr_start_adb_container",
+			ExecTimeout: durationpb.New(time.Minute * 2),
+		},
+		"Stop ADB-base": {
+			Docs: []string{
+				"Stop adb-base container",
+			},
+			ExecName:               "ctr_stop_adb_container",
+			AllowFailAfterRecovery: true,
+		},
+		"Start Servo-Nexus": {
+			Docs: []string{
+				"Pull and run servo-nexus container",
+			},
+			Conditions: []string{
+				"Do not run on Mobile Harness box",
+				"Do not run on CloudBot",
+				"Testbed has Servo",
+				"CrosToolRunner is up",
+			},
+			ExecName:    "ctr_servo_nexus_start_container",
+			ExecTimeout: durationpb.New(time.Minute * 4),
+		},
+		"Stop Servo-Nexus": {
+			Docs: []string{
+				"Stop Servo-Nexus container",
+			},
+			ExecName:               "ctr_servo_nexus_stop_container",
+			AllowFailAfterRecovery: true,
+		},
+		"Start Foil-provision": {
+			Docs: []string{
+				"Pull and run foil-provision container",
+			},
+			Conditions: []string{
+				"Do not run on CloudBot",
+				"CrosToolRunner is up",
+			},
+			ExecName: "ctr_start_foil_provision_container",
+		},
+		"Stop Foil-provision": {
+			Docs: []string{
+				"Stop Foil-provision container",
+			},
+			ExecName:               "ctr_stop_foil_provision_container",
+			AllowFailAfterRecovery: true,
+		},
+		"Detect CacheService address": {
+			Docs: []string{
+				"Collect address of CacheService rom labService.",
+			},
+			Conditions: []string{
+				"Do not run on Mobile Harness box",
+			},
+			ExecName: "cache_service_address_detection",
+		},
+	}
+	for k, v := range am {
+		if _, ok := actions[k]; ok {
+			panic("duplicate key:" + k + " in actions map")
+		}
+		actions[k] = v
+	}
+}

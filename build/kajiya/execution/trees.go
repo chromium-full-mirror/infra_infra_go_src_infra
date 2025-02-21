@@ -1,0 +1,295 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package execution
+
+import (
+	"errors"
+	"fmt"
+	"log"
+	"maps"
+	"os"
+	"path/filepath"
+
+	"github.com/bazelbuild/remote-apis-sdks/go/pkg/digest"
+	repb "github.com/bazelbuild/remote-apis/build/bazel/remote/execution/v2"
+	"golang.org/x/sync/singleflight"
+
+	"go.chromium.org/infra/build/kajiya/blobstore"
+)
+
+// TreeRepository is a repository for trees. It provides methods for materializing trees in the
+// local filesystem, which can then be mounted into an action's input root later.
+type TreeRepository struct {
+	// Base directory for all trees
+	baseDir string
+
+	// The CAS to use for fetching directory protos and files.
+	cas *blobstore.ContentAddressableStorage
+
+	// Synchronization mechanism to prevent multiple concurrent materializations of the same directory.
+	materializeSyncer singleflight.Group
+}
+
+// treeNode represents a node in a directory merkle tree.
+type treeNode struct {
+	// The digest of the directory that contains the files and directories of this tree node.
+	Digest digest.Digest
+
+	// The relative path in the sandbox of this node.
+	Path string
+}
+
+func newTreeRepository(baseDir string, cas *blobstore.ContentAddressableStorage) (*TreeRepository, error) {
+	if baseDir == "" {
+		return nil, fmt.Errorf("baseDir must not be empty")
+	}
+
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create directory %q: %w", baseDir, err)
+	}
+
+	return &TreeRepository{
+		baseDir: baseDir,
+		cas:     cas,
+	}, nil
+}
+
+// StageDirectory downloads the given directory from the CAS and writes it to
+// the given path. If the directory already exists, it is overwritten.
+func (t *TreeRepository) StageDirectory(dirDigest *repb.Digest, path string) error {
+	// Parse the directory digest.
+	d, err := digest.NewFromProto(dirDigest)
+	if err != nil {
+		return fmt.Errorf("failed to parse digest: %w", err)
+	}
+
+	// First, ensure that the directory tree has been materialized.
+	dirs, err := t.materializeDirectory(d)
+	if err != nil {
+		return fmt.Errorf("failed to materialize directory: %w", err)
+	}
+
+	// Traverse the tree and copy files and directories.
+	stack := []*treeNode{{
+		Digest: d,
+		Path:   "",
+	}}
+
+	for len(stack) > 0 {
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		// Copy the directory from our tree repository to the destination.
+		sourceDir := filepath.Join(t.baseDir, node.Digest.Hash)
+		destDir := filepath.Join(path, node.Path)
+
+		// Copy all files from the source directory to the destination directory.
+		dentries, err := os.ReadDir(sourceDir)
+		if err != nil {
+			return fmt.Errorf("failed to read directory: %w", err)
+		}
+		for _, d := range dentries {
+			srcPath := filepath.Join(sourceDir, d.Name())
+			destPath := filepath.Join(destDir, d.Name())
+			if d.IsDir() {
+				if err := os.Mkdir(destPath, 0755); err != nil {
+					return fmt.Errorf("failed to create directory: %w", err)
+				}
+			} else if d.Type()&os.ModeSymlink != 0 {
+				target, err := os.Readlink(srcPath)
+				if err != nil {
+					return fmt.Errorf("failed to read symlink target: %w", err)
+				}
+				if err := os.Symlink(target, destPath); err != nil {
+					return fmt.Errorf("failed to create symlink: %w", err)
+				}
+			} else {
+				if err := blobstore.FastCopy(srcPath, destPath); err != nil {
+					return fmt.Errorf("failed to create hardlink: %w", err)
+				}
+			}
+		}
+
+		// Add all children to the stack.
+		dir := dirs[node.Digest.Hash]
+		for _, child := range dir.Directories {
+			stack = append(stack, &treeNode{
+				Digest: digest.NewFromProtoUnvalidated(child.Digest),
+				Path:   filepath.Join(node.Path, child.Name),
+			})
+		}
+	}
+
+	return nil
+}
+
+// materializeDirectory recursively materializes the given directory in the tree repository.
+func (t *TreeRepository) materializeDirectory(dirDigest digest.Digest) (map[string]*repb.Directory, error) {
+	dirs, err, _ := t.materializeSyncer.Do(dirDigest.Hash, func() (any, error) {
+		// Get the directory message from the CAS.
+		d := &repb.Directory{}
+		if err := t.cas.Proto(dirDigest, d); err != nil {
+			return nil, fmt.Errorf("failed to fetch directory proto: %w", err)
+		}
+
+		dirs := make(map[string]*repb.Directory)
+		dirs[dirDigest.Hash] = d
+
+		// Check if we already have the directory materialized on disk.
+		// If yes, we trust its contents and reuse it, instead of materializing it again.
+		// We still need to check whether all subdirectories are there, too, though.
+		path := filepath.Join(t.baseDir, dirDigest.Hash)
+		if _, err := os.Stat(path); err == nil {
+			var missingBlobs []digest.Digest
+			for _, sdNode := range d.Directories {
+				sdDigest, err := digest.NewFromProto(sdNode.Digest)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse subdirectory digest: %w", err)
+				}
+				subDirs, err := t.materializeDirectory(sdDigest)
+				if err != nil {
+					var mberr *blobstore.MissingBlobsError
+					if errors.As(err, &mberr) {
+						missingBlobs = append(missingBlobs, mberr.Blobs...)
+						continue
+					}
+					return nil, fmt.Errorf("failed to materialize subdirectory: %w", err)
+				}
+				maps.Copy(dirs, subDirs)
+			}
+			if len(missingBlobs) > 0 {
+				return nil, &blobstore.MissingBlobsError{Blobs: missingBlobs}
+			}
+			return dirs, nil
+		}
+
+		// If we get to this point, it means that we actually have to materialize
+		// the directory on disk. We do this in a temporary directory first, and
+		// then move it to its final location once we're done.
+		tmpPath, err := os.MkdirTemp(t.baseDir, "*")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temporary directory: %w", err)
+		}
+		defer func() {
+			if tmpPath != "" {
+				if err := os.RemoveAll(tmpPath); err != nil {
+					log.Printf("🚨 failed to remove temporary directory: %v", err)
+				}
+			}
+		}()
+
+		var missingBlobs []digest.Digest
+
+		// First, materialize all the input files and symlinks in the directory.
+		for _, f := range d.Files {
+			filePath := filepath.Join(tmpPath, f.Name)
+			if err = t.materializeFile(filePath, f); err != nil {
+				var mberr *blobstore.MissingBlobsError
+				if errors.As(err, &mberr) {
+					missingBlobs = append(missingBlobs, mberr.Blobs...)
+					continue
+				}
+				return nil, fmt.Errorf("failed to materialize file: %w", err)
+			}
+		}
+		for _, sl := range d.Symlinks {
+			slPath := filepath.Join(tmpPath, sl.Name)
+			if err = os.Symlink(sl.Target, slPath); err != nil {
+				return nil, fmt.Errorf("failed to create symlink: %w", err)
+			}
+		}
+
+		// Materialize all the subdirectories.
+		for _, sd := range d.Directories {
+			sdDigest, err := digest.NewFromProto(sd.Digest)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse subdirectory digest: %w", err)
+			}
+			subDirs, err := t.materializeDirectory(sdDigest)
+			if err != nil {
+				var mberr *blobstore.MissingBlobsError
+				if errors.As(err, &mberr) {
+					missingBlobs = append(missingBlobs, mberr.Blobs...)
+					continue
+				}
+				return nil, fmt.Errorf("failed to materialize subdirectory: %w", err)
+			}
+			if err = os.Mkdir(filepath.Join(tmpPath, sd.Name), 0755); err != nil {
+				return nil, fmt.Errorf("failed to create directory: %w", err)
+			}
+			maps.Copy(dirs, subDirs)
+		}
+
+		// Finally, set the directory properties. We have to do this after the files have been
+		// materialized, because otherwise the mtime of the directory would be updated to the
+		// current time.
+		if d.NodeProperties != nil {
+			if d.NodeProperties.UnixMode != nil {
+				if err = os.Chmod(tmpPath, os.FileMode(d.NodeProperties.UnixMode.Value)); err != nil {
+					return nil, fmt.Errorf("failed to set mode: %w", err)
+				}
+			}
+
+			if d.NodeProperties.Mtime != nil {
+				time := d.NodeProperties.Mtime.AsTime()
+				if err = os.Chtimes(tmpPath, time, time); err != nil {
+					return nil, fmt.Errorf("failed to set mtime: %w", err)
+				}
+			}
+		}
+
+		// If any blobs are missing, we report them and discard the (incomplete) directory
+		// we just materialized. The caller will have to retry the materialization later.
+		if len(missingBlobs) > 0 {
+			return nil, &blobstore.MissingBlobsError{Blobs: missingBlobs}
+		}
+
+		if err = os.Rename(tmpPath, path); err != nil {
+			return nil, fmt.Errorf("failed to rename directory: %w", err)
+		}
+
+		// If we moved the directory successfully, we don't need to delete it anymore.
+		tmpPath = ""
+		return dirs, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to materialize subdirectory: %w", err)
+	}
+	return dirs.(map[string]*repb.Directory), nil
+}
+
+// materializeFile downloads the given file from the CAS and writes it to the given path.
+func (t *TreeRepository) materializeFile(filePath string, fileNode *repb.FileNode) error {
+	fileDigest, err := digest.NewFromProto(fileNode.Digest)
+	if err != nil {
+		return fmt.Errorf("failed to parse file digest: %w", err)
+	}
+
+	// Calculate the file permissions from all relevant fields.
+	perm := os.FileMode(0644)
+	if fileNode.NodeProperties != nil && fileNode.NodeProperties.UnixMode != nil {
+		perm = os.FileMode(fileNode.NodeProperties.UnixMode.Value)
+	}
+	if fileNode.IsExecutable {
+		perm |= 0111
+	}
+
+	if err := t.cas.LinkTo(fileDigest, filePath); err != nil {
+		return fmt.Errorf("failed to link to file in CAS: %w", err)
+	}
+
+	if err := os.Chmod(filePath, perm); err != nil {
+		return fmt.Errorf("failed to set mode: %w", err)
+	}
+
+	if fileNode.NodeProperties != nil && fileNode.NodeProperties.Mtime != nil {
+		time := fileNode.NodeProperties.Mtime.AsTime()
+		if err := os.Chtimes(filePath, time, time); err != nil {
+			return fmt.Errorf("failed to set mtime: %w", err)
+		}
+	}
+
+	return nil
+}

@@ -1,0 +1,50 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package chromeos.karte;
+
+import "google/api/resource.proto";
+import "go.chromium.org/infra/cros/karte/api/storage_policy.proto";
+
+option go_package = "go.chromium.org/infra/cros/karte/api;kartepb";
+
+// An Observation describes a measurement during an action.
+//
+// Examples:
+//      battery_level:70 - battery level on device is 70%
+//      rrd:present      - rrd metric is present on device
+//      disk_usage:35    - 35% internal storage used
+//
+message Observation {
+  option (google.api.resource) = {
+    type: "karte.appspot.com/Observation"
+    pattern: "observations/{observation}"
+  };
+
+  // The resource name of the observation. Names are generated
+  // automatically when a new observation is created.
+  string name = 1;
+
+  // A reference to a Karte action.
+  string action_name = 2
+      [(google.api.resource_reference) = { type: "karte.appspot.com/Action" }];
+
+  // The metric kind records what measurement is being performed, e.g.
+  // "battery_level" or "disk_usage"
+  string metric_kind = 3;
+
+  // Value records the concrete measurement that was made. It can be a string or
+  // a number.
+  oneof value {
+    string value_string = 4;
+    double value_number = 5;
+  }
+
+  // Storage policy describes how to store this record in Datastore and Bigquery.
+  //
+  // This is a control field and is NOT persisted to the storage layer.
+  StoragePolicy storage_policy = 6;
+}

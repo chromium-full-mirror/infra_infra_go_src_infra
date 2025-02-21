@@ -1,0 +1,240 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package dut
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/maruel/subcommands"
+
+	"go.chromium.org/luci/auth/client/authcli"
+	"go.chromium.org/luci/common/cli"
+	"go.chromium.org/luci/common/flag"
+	"go.chromium.org/luci/grpc/prpc"
+
+	fleet "go.chromium.org/infra/appengine/crosskylabadmin/api/fleet/v1"
+	"go.chromium.org/infra/cmd/shivas/cmdhelp"
+	"go.chromium.org/infra/cmd/shivas/internal/ufs/subcmds/host"
+	"go.chromium.org/infra/cmd/shivas/site"
+	"go.chromium.org/infra/cmd/shivas/utils"
+	"go.chromium.org/infra/cmdsupport/cmdlib"
+	"go.chromium.org/infra/libs/skylab/autotest/hostinfo"
+	"go.chromium.org/infra/libs/skylab/common/heuristics"
+	ufspb "go.chromium.org/infra/unifiedfleet/api/v1/models"
+	ufsAPI "go.chromium.org/infra/unifiedfleet/api/v1/rpc"
+	ufsUtil "go.chromium.org/infra/unifiedfleet/app/util"
+)
+
+// GetDutCmd get host by given name.
+var GetDutCmd = &subcommands.Command{
+	UsageLine: "dut ...",
+	ShortDesc: "Get DUT/labstation details by filters",
+	LongDesc: `Get DUT/labstation details by filters.
+
+Example:
+
+shivas get dut {name1} {name2}
+
+shivas get dut -rack rack1 -rack2 -state serving -state needs_repair
+
+Gets the ChromeOS DUT and prints the output in user-specified format.`,
+	CommandRun: func() subcommands.CommandRun {
+		c := &getDut{}
+		c.authFlags.Register(&c.Flags, site.DefaultAuthOptions)
+		c.envFlags.Register(&c.Flags)
+		c.outputFlags.Register(&c.Flags)
+		c.commonFlags.Register(&c.Flags)
+
+		c.Flags.IntVar(&c.pageSize, "n", 0, cmdhelp.ListPageSizeDesc)
+		c.Flags.BoolVar(&c.keysOnly, "keys", false, cmdhelp.KeysOnlyText)
+
+		c.Flags.Var(flag.StringSlice(&c.zones), "zone", "Name(s) of a zone to filter by. Can be specified multiple times."+cmdhelp.ZoneFilterHelpText)
+		c.Flags.Var(flag.StringSlice(&c.racks), "rack", "Name(s) of a rack to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.machines), "machine", "Name(s) of a machine/asset to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.prototypes), "prototype", "Name(s) of a host prototype to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.tags), "tag", "Name(s) of a tag to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.states), "state", "Name(s) of a state to filter by. Can be specified multiple times."+cmdhelp.StateFilterHelpText)
+		c.Flags.Var(flag.StringSlice(&c.servos), "servo", "Name(s) of a servo:port to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.servotypes), "servotype", "Name(s) of a servo type to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.switches), "switch", "Name(s) of a switch to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.rpms), "rpm", "Name(s) of a rpm to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.pools), "pools", "Name(s) of a tag to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.logicalzones), "logicalzone", "Name(s) of a logical zone to filter by. Can be specified multiple times."+cmdhelp.LogicalZoneHelpText)
+		c.Flags.Var(flag.StringSlice(&c.hive), "hive", "Name(s) of a hive to filter by. Can be specified multiple times.")
+		c.Flags.BoolVar(&c.wantHostInfoStore, "host-info-store", false, "write host info store to stdout")
+
+		return c
+	},
+}
+
+type getDut struct {
+	subcommands.CommandRunBase
+	authFlags   authcli.Flags
+	envFlags    site.EnvFlags
+	outputFlags site.OutputFlags
+	commonFlags site.CommonFlags
+
+	// Filters
+	zones        []string
+	racks        []string
+	machines     []string
+	prototypes   []string
+	tags         []string
+	states       []string
+	servos       []string
+	servotypes   []string
+	switches     []string
+	rpms         []string
+	pools        []string
+	logicalzones []string
+	hive         []string
+
+	pageSize          int
+	keysOnly          bool
+	wantHostInfoStore bool
+}
+
+func (c *getDut) Run(a subcommands.Application, args []string, env subcommands.Env) int {
+	if err := c.innerRun(a, args, env); err != nil {
+		cmdlib.PrintError(a, err)
+		return 1
+	}
+	return 0
+}
+
+func (c *getDut) innerRun(a subcommands.Application, args []string, env subcommands.Env) error {
+	ctx := cli.GetContext(a, c, env)
+	ns, err := c.getNamespace()
+	if err != nil {
+		return err
+	}
+	ctx = utils.SetupContext(ctx, ns)
+	hc, err := cmdlib.NewHTTPClient(ctx, &c.authFlags)
+	if err != nil {
+		return err
+	}
+	e := c.envFlags.Env()
+	if c.commonFlags.Verbose() {
+		fmt.Printf("Using UFS service %s\n", e.UnifiedFleetService)
+	}
+	ic := ufsAPI.NewFleetPRPCClient(&prpc.Client{
+		C:       hc,
+		Host:    e.UnifiedFleetService,
+		Options: site.DefaultPRPCOptions(c.envFlags),
+	})
+
+	for i, arg := range args {
+		args[i] = heuristics.NormalizeBotNameToDeviceName(arg)
+	}
+
+	if c.wantHostInfoStore {
+		invWithSVClient := fleet.NewInventoryPRPCClient(
+			&prpc.Client{
+				C:       hc,
+				Host:    e.AdminService,
+				Options: site.DefaultPRPCOptions(c.envFlags),
+			},
+		)
+		return c.getHostInfoStore(ctx, a, invWithSVClient, ic, args)
+	}
+
+	emit := !utils.NoEmitMode(c.outputFlags.NoEmit())
+	full := utils.FullMode(c.outputFlags.Full())
+	var res []proto.Message
+	if len(args) > 0 {
+		res = utils.ConcurrentGet(ctx, ic, args, utils.GetSingleMachineLSE)
+	} else {
+		res, err = utils.BatchList(ctx, ic, host.ListHosts, c.formatFilters(), c.pageSize, c.keysOnly, full, nil)
+	}
+	if err != nil {
+		return err
+	}
+	return utils.PrintEntities(ctx, ic, res, utils.PrintMachineLSEsJSON, printDutFull, printDutNormal,
+		c.outputFlags.JSON(), emit, full, c.outputFlags.Tsv(), c.keysOnly)
+}
+
+// getNamespace returns the namespace used to call UFS with appropriate
+// validation and default behavior. It is primarily separated from the main
+// function for testing purposes
+func (c *getDut) getNamespace() (string, error) {
+	return c.envFlags.Namespace(site.OSLikeNamespaces, ufsUtil.OSNamespace)
+}
+
+// getHostInfoStore gets the host-info-store file content from the ufsAPT.FleetClient and print it out.
+func (c *getDut) getHostInfoStore(ctx context.Context, a subcommands.Application, invWithSVClient fleet.InventoryClient, ic ufsAPI.FleetClient, hostnames []string) error {
+	g := hostinfo.NewGetter(ic, invWithSVClient)
+	for _, hostname := range hostnames {
+		contents, err := g.GetContentsForHostname(ctx, hostname)
+		if err != nil {
+			fmt.Fprintf(a.GetErr(), "%s\n", err)
+			continue
+		}
+		fmt.Printf("%s\n", contents)
+	}
+	return nil
+}
+
+func (c *getDut) formatFilters() []string {
+	filters := make([]string, 0)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.ZoneFilterName, c.zones)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.RackFilterName, c.racks)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.MachineFilterName, c.machines)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.MachinePrototypeFilterName, c.prototypes)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.ServoFilterName, c.servos)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.ServoTypeFilterName, c.servotypes)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.SwitchFilterName, c.switches)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.RPMFilterName, c.rpms)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.TagFilterName, c.tags)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.StateFilterName, c.states)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.PoolsFilterName, c.pools)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.LogicalZoneFilterName, c.logicalzones)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.HiveFilterName, c.hive)...)
+	return filters
+}
+
+func printDutFull(ctx context.Context, ic ufsAPI.FleetClient, msgs []proto.Message, tsv bool) error {
+	lseTomachineMap := make(map[string]*ufspb.Machine, 0)
+	lses := make([]*ufspb.MachineLSE, len(msgs))
+	idTomachineMap := make(map[string]*ufspb.Machine, 0)
+	ids := make([]string, 0)
+	for i, r := range msgs {
+		lses[i] = r.(*ufspb.MachineLSE)
+		lses[i].Name = ufsUtil.RemovePrefix(lses[i].Name)
+		if len(lses[i].GetMachines()) == 0 {
+			fmt.Println("Invalid host ", lses[i].Name)
+			continue
+		}
+		ids = append(ids, ufsUtil.AddPrefix(ufsUtil.MachineCollection, lses[i].GetMachines()[0]))
+	}
+	res, err := ic.BatchGetMachines(ctx, &ufsAPI.BatchGetMachinesRequest{
+		Names: ids,
+	})
+	if err != nil {
+		fmt.Println("Failed to get machines. Printing only partial information.", err)
+		return printDutNormal(msgs, false, false)
+	}
+	for _, machine := range res.GetMachines() {
+		idTomachineMap[ufsUtil.RemovePrefix(machine.GetName())] = machine
+	}
+	for i := range lses {
+		if len(lses[i].GetMachines()) == 0 {
+			continue
+		}
+		machine, ok := idTomachineMap[lses[i].GetMachines()[0]]
+		if !ok {
+			continue
+		}
+		lseTomachineMap[lses[i].Name] = machine
+	}
+	utils.PrintDutsFull(lses, lseTomachineMap)
+	return nil
+}
+
+func printDutNormal(msgs []proto.Message, tsv, keysOnly bool) error {
+	utils.PrintDutsShort(msgs, keysOnly)
+	return nil
+}

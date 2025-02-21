@@ -1,0 +1,182 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package asset
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/maruel/subcommands"
+
+	"go.chromium.org/luci/auth/client/authcli"
+	"go.chromium.org/luci/common/cli"
+	"go.chromium.org/luci/common/flag"
+	"go.chromium.org/luci/grpc/prpc"
+
+	"go.chromium.org/infra/cmd/shivas/cmdhelp"
+	"go.chromium.org/infra/cmd/shivas/site"
+	"go.chromium.org/infra/cmd/shivas/utils"
+	"go.chromium.org/infra/cmdsupport/cmdlib"
+	ufsAPI "go.chromium.org/infra/unifiedfleet/api/v1/rpc"
+	ufsUtil "go.chromium.org/infra/unifiedfleet/app/util"
+)
+
+// GetAssetCmd get asset by given name.
+var GetAssetCmd = &subcommands.Command{
+	UsageLine: "asset ...",
+	ShortDesc: "Get asset details by filters",
+	LongDesc: `Get asset details by filters.
+
+Example:
+
+shivas get asset {name1} {name2}
+
+shivas get asset -zone atl97
+
+Gets the asset and prints the output in the user-specified format.`,
+	CommandRun: func() subcommands.CommandRun {
+		c := &getAsset{}
+		c.authFlags.Register(&c.Flags, site.DefaultAuthOptions)
+		c.envFlags.Register(&c.Flags)
+		c.commonFlags.Register(&c.Flags)
+		c.outputFlags.Register(&c.Flags)
+
+		c.Flags.IntVar(&c.pageSize, "n", 0, cmdhelp.ListPageSizeDesc)
+		c.Flags.BoolVar(&c.keysOnly, "keys", false, cmdhelp.KeysOnlyText)
+
+		c.Flags.Var(flag.StringSlice(&c.zones), "zone", "Name(s) of a zone to filter by. Can be specified multiple times."+cmdhelp.ZoneFilterHelpText)
+		c.Flags.Var(flag.StringSlice(&c.racks), "rack", "Name(s) of a rack to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.assettypes), "assettype", "Name(s) of a assettype to filter by. Can be specified multiple times."+cmdhelp.AssetTypesHelpText)
+		c.Flags.Var(flag.StringSlice(&c.models), "model", "Name(s) of a model to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.buildTargets), "board", "Name(s) of a build target/board to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.phases), "phase", "Name(s) of a phase to filter by. Can be specified multiple times.")
+		c.Flags.Var(flag.StringSlice(&c.tags), "tag", "Name(s) of a tag to filter by. Can be specified multiple times.")
+		return c
+	},
+}
+
+type getAsset struct {
+	subcommands.CommandRunBase
+	authFlags   authcli.Flags
+	envFlags    site.EnvFlags
+	commonFlags site.CommonFlags
+	outputFlags site.OutputFlags
+
+	// Filters
+	zones        []string
+	racks        []string
+	assettypes   []string
+	models       []string
+	buildTargets []string
+	phases       []string
+	tags         []string
+
+	pageSize int
+	keysOnly bool
+}
+
+func (c *getAsset) Run(a subcommands.Application, args []string, env subcommands.Env) int {
+	if err := c.innerRun(a, args, env); err != nil {
+		cmdlib.PrintError(a, err)
+		return 1
+	}
+	return 0
+}
+
+func (c *getAsset) innerRun(a subcommands.Application, args []string, env subcommands.Env) error {
+	ctx := cli.GetContext(a, c, env)
+	ns, err := c.getNamespace()
+	if err != nil {
+		return err
+	}
+	ctx = utils.SetupContext(ctx, ns)
+	hc, err := cmdlib.NewHTTPClient(ctx, &c.authFlags)
+	if err != nil {
+		return err
+	}
+	e := c.envFlags.Env()
+	if c.commonFlags.Verbose() {
+		fmt.Printf("Using UnifiedFleet service %s\n", e.UnifiedFleetService)
+	}
+	ic := ufsAPI.NewFleetPRPCClient(&prpc.Client{
+		C:       hc,
+		Host:    e.UnifiedFleetService,
+		Options: site.DefaultPRPCOptions(c.envFlags),
+	})
+	emit := !utils.NoEmitMode(c.outputFlags.NoEmit())
+	full := utils.FullMode(c.outputFlags.Full())
+	var res []proto.Message
+	if len(args) > 0 {
+		res = utils.ConcurrentGet(ctx, ic, args, c.getSingle)
+	} else {
+		res, err = utils.BatchList(ctx, ic, listAssets, c.formatFilters(), c.pageSize, c.keysOnly, full, nil)
+	}
+	if err != nil {
+		return err
+	}
+	return utils.PrintEntities(ctx, ic, res, utils.PrintAssetsJSON, printAssetFull, printAssetNormal,
+		c.outputFlags.JSON(), emit, full, c.outputFlags.Tsv(), c.keysOnly)
+}
+
+// getNamespace returns the namespace used to call UFS with appropriate
+// validation and default behavior. It is primarily separated from the main
+// function for testing purposes
+func (c *getAsset) getNamespace() (string, error) {
+	return c.envFlags.Namespace(site.OSLikeNamespaces, ufsUtil.OSNamespace)
+}
+
+func (c *getAsset) getSingle(ctx context.Context, ic ufsAPI.FleetClient, name string) (proto.Message, error) {
+	return ic.GetAsset(ctx, &ufsAPI.GetAssetRequest{
+		Name: ufsUtil.AddPrefix(ufsUtil.AssetCollection, name),
+	})
+}
+
+func (c *getAsset) formatFilters() []string {
+	filters := make([]string, 0)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.ZoneFilterName, c.zones)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.RackFilterName, c.racks)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.AssetTypeFilterName, c.assettypes)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.ModelFilterName, c.models)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.BoardFilterName, c.buildTargets)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.PhaseFilterName, c.phases)...)
+	filters = utils.JoinFilters(filters, utils.PrefixFilters(ufsUtil.TagFilterName, c.tags)...)
+	return filters
+}
+
+func printAssetFull(ctx context.Context, ic ufsAPI.FleetClient, msgs []proto.Message, tsv bool) error {
+	return printAssetNormal(msgs, tsv, false)
+}
+
+func printAssetNormal(entities []proto.Message, tsv, keysOnly bool) error {
+	if len(entities) == 0 {
+		return nil
+	}
+	if tsv {
+		utils.PrintTSVAssets(entities, keysOnly)
+		return nil
+	}
+	utils.PrintTableTitle(utils.AssetTitle, tsv, keysOnly)
+	utils.PrintAssets(entities, keysOnly)
+	return nil
+}
+
+func listAssets(ctx context.Context, ic ufsAPI.FleetClient, pageSize int32, pageToken, filter string, keysOnly, full bool) ([]proto.Message, string, error) {
+	req := &ufsAPI.ListAssetsRequest{
+		PageSize:  pageSize,
+		PageToken: pageToken,
+		Filter:    filter,
+		KeysOnly:  keysOnly,
+	}
+	res, err := ic.ListAssets(ctx, req)
+	if err != nil {
+		return nil, "", err
+	}
+	protos := make([]proto.Message, len(res.GetAssets()))
+	for i, m := range res.GetAssets() {
+		protos[i] = m
+	}
+	return protos, res.GetNextPageToken(), nil
+}

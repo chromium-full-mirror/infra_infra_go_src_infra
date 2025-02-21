@@ -1,0 +1,773 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+// Package service provides the API handlers for ants publish.
+package service
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	storage_path "go.chromium.org/chromiumos/config/go"
+	"go.chromium.org/chromiumos/config/go/test/api"
+	"go.chromium.org/chromiumos/config/go/test/api/metadata"
+	"go.chromium.org/chromiumos/config/go/test/artifact"
+	labapi "go.chromium.org/chromiumos/config/go/test/lab/api"
+
+	androidlib "go.chromium.org/infra/cros/cmd/common_lib/android_api"
+	mock_androidapi "go.chromium.org/infra/cros/cmd/common_lib/android_api/mocks"
+	atp "go.chromium.org/infra/cros/cmd/common_lib/ants/androidbuildinternal/v3"
+)
+
+func TestAntsStatus(t *testing.T) {
+	testCases := []struct {
+		name   string
+		result *api.TestCaseResult
+		want   string
+	}{
+		{
+			name:   "pass",
+			result: &api.TestCaseResult{Verdict: &api.TestCaseResult_Pass_{}},
+			want:   "pass",
+		},
+		{
+			name:   "fail",
+			result: &api.TestCaseResult{Verdict: &api.TestCaseResult_Fail_{}},
+			want:   "fail",
+		},
+		{
+			name: "assumptionFailure",
+			result: &api.TestCaseResult{
+				Verdict: &api.TestCaseResult_Pass_{},
+				Errors: []*api.TestCaseResult_Error{
+					{Message: "err"},
+				},
+			},
+			want: "assumptionFailure",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := antsTestStatus(tc.result)
+			t.Log(tc.result)
+			t.Log(tc.result.GetVerdict())
+			if got != tc.want {
+				t.Errorf("TestAntsStatus: got %v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRemoveModulePrefix(t *testing.T) {
+	testCases := []struct {
+		name       string
+		moduleName string
+		wantName   string
+	}{
+		{
+			name:       "cts",
+			moduleName: "tradefed.cts.abc.def",
+			wantName:   "abc.def",
+		},
+		{
+			name:       "dts",
+			moduleName: "tradefed.dts.abc.def",
+			wantName:   "abc.def",
+		},
+		{
+			name:       "noPrefix",
+			moduleName: "abc.def",
+			wantName:   "abc.def",
+		},
+	}
+	aps := &AntsPublishService{}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := aps.removeModulePrefix(tc.moduleName)
+			if got != tc.wantName {
+				t.Errorf("Unexpected diff: want(%s) got(%s)", tc.wantName, got)
+			}
+		})
+	}
+}
+
+func TestValidateAntsPublishRequest(t *testing.T) {
+	defaultResult := &api.TestCaseResult{TestCaseId: &api.TestCase_Id{Value: "test"}}
+	testCases := []struct {
+		name    string
+		request *metadata.PublishAntsMetadata
+		gtr     *api.CrosTestResponse_GivenTestResult
+		wantErr bool
+	}{
+		{
+			name: "missingInvocation",
+			request: &metadata.PublishAntsMetadata{
+				ParentWorkUnitId: "WU1",
+				AccountId:        "1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "missingParentWU",
+			request: &metadata.PublishAntsMetadata{
+				AntsInvocationId: "I1234",
+				AccountId:        "1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "missingAccountID",
+			request: &metadata.PublishAntsMetadata{
+				ParentWorkUnitId: "WU1",
+				AntsInvocationId: "I1234",
+			},
+			wantErr: false,
+		},
+		{
+			name: "givenResult",
+			request: &metadata.PublishAntsMetadata{
+				ParentWorkUnitId: "WU1",
+				AntsInvocationId: "I1234",
+				AccountId:        "1",
+			},
+			gtr: &api.CrosTestResponse_GivenTestResult{
+				ParentTest:           "parent",
+				ChildTestCaseResults: []*api.TestCaseResult{defaultResult},
+			},
+		},
+		{
+			name: "missingResults",
+			request: &metadata.PublishAntsMetadata{
+				ParentWorkUnitId: "WU1",
+				AntsInvocationId: "I1234",
+				AccountId:        "1",
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			metadata := &anypb.Any{}
+			err := metadata.MarshalFrom(tc.request)
+			if err != nil {
+				t.Error(err)
+			}
+			req := &api.PublishRequest{
+				ArtifactDirPath: &storage_path.StoragePath{Path: "gs://test", HostType: storage_path.StoragePath_LOCAL},
+				Metadata:        metadata,
+				TestResponse: &api.CrosTestResponse{
+					GivenTestResults: []*api.CrosTestResponse_GivenTestResult{tc.gtr},
+				},
+			}
+			gotErr := validateAntsPublishRequest(req)
+			if (tc.wantErr && gotErr == nil) || (gotErr != nil && !tc.wantErr) {
+				t.Errorf("Unexpected error. want: %v, got %v", tc.wantErr, gotErr)
+			}
+		})
+	}
+}
+
+func TestArtifactMetadata(t *testing.T) {
+	testCases := []struct {
+		name      string
+		path      string
+		wantTypes []string
+	}{
+		{
+			name:      "log",
+			path:      "provision/foo/log.txt",
+			wantTypes: []string{"text/plain"},
+		},
+		{
+			name:      "xml",
+			path:      "test/tf/result.xml",
+			wantTypes: []string{"application/xml", "text/xml"},
+		},
+	}
+	aps := &AntsPublishService{
+		metadata: &metadata.PublishAntsMetadata{AntsInvocationId: "I123", ParentWorkUnitId: "WU1"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := aps.artifactMetadata(tc.path)
+			if got.Name != tc.path {
+				t.Errorf("Unexpected name. want %s got %s", tc.path, got.Name)
+			}
+			if !slices.Contains(tc.wantTypes, got.ContentType) {
+				t.Errorf("Unexpected content type. want %s got %s", tc.wantTypes, got.ContentType)
+			}
+		})
+	}
+}
+func TestArtifactType(t *testing.T) {
+	testCases := []struct {
+		name     string
+		path     string
+		wantType string
+	}{
+		{
+			name:     "logcat",
+			path:     "device_logcat_setup_satlab-0wgatfqi22088039.txt",
+			wantType: "logcat",
+		},
+		{
+			name:     "adblog",
+			path:     "host_adb_log-0wgatfqi22088039.txt",
+			wantType: "adb log",
+		},
+		{
+			name:     "hostlog",
+			path:     "end_host_log-0wgatfqi22088039.txt",
+			wantType: "host log",
+		},
+		{
+			name:     "perfetto",
+			path:     "invocation-tract_perfetto-trace.gz",
+			wantType: "perfetto",
+		},
+		{
+			name:     "xml",
+			path:     "tf_result.xml.gz",
+			wantType: "xml",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotType := artifactType(tc.path)
+			if gotType != tc.wantType {
+				t.Errorf("Unexpected artifact type. want %s got %s", tc.wantType, gotType)
+			}
+		})
+	}
+}
+
+func TestTestProperties(t *testing.T) {
+	trProps := []*atp.Property{
+		{Name: "board", Value: "brya"},
+		{Name: "model", Value: "mithrax"},
+	}
+	schedArgs := map[string]string{
+		"suite":      "v2/al-tse-team/al_cts_depq_test_brya_redrix",
+		"label-pool": "al-dev",
+	}
+
+	testCases := []struct {
+		name                string
+		dut                 *labapi.Dut
+		invID               string
+		abiTag              *api.TestCase_Tag
+		wantProps           []*atp.Property
+		wantIdentifierProps []*atp.Property
+	}{
+		{
+			name: "crosDut",
+			dut: &labapi.Dut{
+				DutType: &labapi.Dut_Chromeos{
+					Chromeos: &labapi.Dut_ChromeOS{
+						DutModel: &labapi.DutModel{
+							BuildTarget: "brya",
+							ModelName:   "mithrax",
+						},
+						Sku: "pujja_10G",
+					},
+				},
+			},
+			wantProps: []*atp.Property{
+				{Name: luciInvPropName, Value: ""},
+			},
+			wantIdentifierProps: trProps,
+		},
+		{
+			name: "crosDutWithResultTags",
+			dut: &labapi.Dut{
+				DutType: &labapi.Dut_Chromeos{
+					Chromeos: &labapi.Dut_ChromeOS{
+						DutModel: &labapi.DutModel{
+							BuildTarget: "brya",
+							ModelName:   "mithrax",
+						},
+						Sku: "pujja_10G",
+					},
+				},
+			},
+			abiTag: &api.TestCase_Tag{Value: "abi:x86"},
+			wantProps: []*atp.Property{
+				{Name: luciInvPropName, Value: ""},
+			},
+			wantIdentifierProps: trProps,
+		},
+		{
+			name: "crosDutAndInv",
+			dut: &labapi.Dut{
+				DutType: &labapi.Dut_Chromeos{
+					Chromeos: &labapi.Dut_ChromeOS{
+						DutModel: &labapi.DutModel{
+							BuildTarget: "brya",
+							ModelName:   "mithrax",
+						},
+						Sku: "pujja_10G",
+					},
+				},
+			},
+			invID: "inv/12345678",
+			wantProps: []*atp.Property{
+				{Name: luciInvPropName, Value: "inv/12345678"},
+			},
+			wantIdentifierProps: trProps,
+		},
+		{
+			name: "AndroidDut",
+			dut: &labapi.Dut{
+				DutType: &labapi.Dut_Android_{
+					Android: &labapi.Dut_Android{
+						DutModel: &labapi.DutModel{
+							BuildTarget: "brya",
+							ModelName:   "mithrax",
+						},
+					},
+				},
+			},
+			wantProps: []*atp.Property{
+				{Name: luciInvPropName, Value: ""},
+			},
+			wantIdentifierProps: trProps,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			aps := &AntsPublishService{
+				metadata: &metadata.PublishAntsMetadata{
+					PrimaryExecutionInfo: &artifact.ExecutionInfo{
+						DutInfo: &artifact.DutInfo{Dut: tc.dut},
+					},
+					SchedulingMetadata: &artifact.SchedulingMetadata{
+						SchedulingArgs: schedArgs,
+					},
+				},
+			}
+			if tc.invID != "" {
+				aps.metadata.LuciInvocationId = tc.invID
+			}
+
+			skuProp := &atp.Property{Name: "sku", Value: ""}
+			if _, ok := tc.dut.GetDutType().(*labapi.Dut_Chromeos); ok {
+				skuProp.Value = "pujja_10G"
+			}
+
+			result := &api.TestCaseResult{}
+			if tc.abiTag != nil {
+				result.Tags = []*api.TestCase_Tag{tc.abiTag}
+				tc.wantIdentifierProps = append(tc.wantIdentifierProps, &atp.Property{Name: abiKey, Value: "x86"})
+			}
+			tc.wantIdentifierProps = append(tc.wantIdentifierProps, skuProp)
+			tc.wantProps = append(tc.wantProps, tc.wantIdentifierProps...)
+			for k, v := range schedArgs {
+				tc.wantProps = append(tc.wantProps, &atp.Property{Name: k, Value: v})
+			}
+
+			gotProps, gotIdentifierProps, err := aps.testProperties(result)
+			if err != nil {
+				t.Errorf("error calling dut properties: %q", err)
+			}
+
+			sortFn := cmpopts.SortSlices(func(m1, m2 *atp.Property) bool { return m1.Name < m2.Name })
+			if diff := cmp.Diff(tc.wantProps, gotProps, protocmp.Transform(), sortFn); diff != "" {
+				t.Errorf("Unexpected properties diff: diff: %s", diff)
+			}
+			if diff := cmp.Diff(tc.wantIdentifierProps, gotIdentifierProps, protocmp.Transform(), sortFn); diff != "" {
+				t.Errorf("Unexpected identifier properties diff: diff: %s", diff)
+			}
+		})
+	}
+}
+
+func TestResultEntries(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	defer mockCtl.Finish()
+	mockWU := mock_androidapi.NewMockWorkUnitService(mockCtl)
+	parentWU := &atp.WorkUnit{Id: "WU1", Name: "Parent WU"}
+	returnWUID := "WUTR123"
+
+	testIdentifierProps := []*atp.Property{
+		{Name: "board", Value: "brya"},
+		{Name: "model", Value: "vell"},
+		{Name: "sku", Value: "pujj_10G"},
+	}
+
+	luciInvID := "inv/12345678"
+	trProps := []*atp.Property{
+		{Name: luciInvPropName, Value: luciInvID},
+		{Name: "board", Value: "brya"},
+		{Name: "model", Value: "vell"},
+		{Name: "sku", Value: "pujj_10G"},
+	}
+
+	executionInfo := &artifact.ExecutionInfo{
+		DutInfo: &artifact.DutInfo{
+			Dut: &labapi.Dut{
+				DutType: &labapi.Dut_Chromeos{
+					Chromeos: &labapi.Dut_ChromeOS{
+						DutModel: &labapi.DutModel{BuildTarget: "brya", ModelName: "vell"},
+						Sku:      "pujj_10G",
+					},
+				},
+			},
+		},
+	}
+	aps := &AntsPublishService{
+		service: &androidlib.Service{
+			WorkUnitService: mockWU,
+		},
+		metadata: &metadata.PublishAntsMetadata{
+			PrimaryExecutionInfo: executionInfo,
+			LuciInvocationId:     luciInvID,
+		},
+	}
+	buildInfo := &atp.BuildDescriptor{Branch: "git-main_cl_dev"}
+	testCases := []struct {
+		name        string
+		wu          *atp.WorkUnit
+		expectWU    *atp.WorkUnit
+		results     []*api.TestCaseResult
+		wantResults []*atp.TestResult
+	}{
+		{
+			name: "crash",
+			results: []*api.TestCaseResult{
+				{
+					TestCaseId: &api.TestCase_Id{Value: "tradefed.cts.CtsWrapWrapNoDebugTestCases"},
+					Verdict:    &api.TestCaseResult_Crash_{},
+				},
+			},
+			wantResults: []*atp.TestResult{
+				{
+					TestIdentifier: &atp.TestIdentifier{
+						Module:           parentWU.Name,
+						ModuleParameters: testIdentifierProps,
+						TestClass:        parentWU.Name,
+						Method:           "tradefed.cts.CtsWrapWrapNoDebugTestCases",
+					},
+					TestStatus:       "testError",
+					Properties:       trProps,
+					WorkUnitId:       parentWU.Id,
+					Timing:           &atp.Timing{},
+					PrimaryBuildInfo: buildInfo,
+				},
+			},
+		},
+		{
+			name: "skip",
+			results: []*api.TestCaseResult{
+				{
+					TestCaseId: &api.TestCase_Id{Value: "tradefed.cts.CtsWrapWrapNoDebugTestCases"},
+					Verdict:    &api.TestCaseResult_Skip_{},
+					Reason:     "skip reason",
+				},
+			},
+			wantResults: []*atp.TestResult{
+				{
+					TestIdentifier: &atp.TestIdentifier{
+						Module:           parentWU.Name,
+						ModuleParameters: testIdentifierProps,
+						TestClass:        parentWU.Name,
+						Method:           "tradefed.cts.CtsWrapWrapNoDebugTestCases",
+					},
+					TestStatus:       "testSkipped",
+					Properties:       trProps,
+					WorkUnitId:       parentWU.Id,
+					Timing:           &atp.Timing{},
+					PrimaryBuildInfo: buildInfo,
+					SkippedReason:    &atp.SkippedReason{ReasonMessage: "skip reason"},
+				},
+			},
+		},
+		{
+			name: "Mobly_Pass",
+			results: []*api.TestCaseResult{
+				{
+					TestCaseId: &api.TestCase_Id{Value: "testmethod"},
+					Verdict:    &api.TestCaseResult_Pass_{},
+				},
+			},
+			wantResults: []*atp.TestResult{
+				{
+					TestIdentifier: &atp.TestIdentifier{
+						Module:           parentWU.Name,
+						ModuleParameters: testIdentifierProps,
+						TestClass:        parentWU.Name,
+						Method:           "testmethod",
+					},
+					TestStatus:       "pass",
+					Properties:       trProps,
+					WorkUnitId:       parentWU.Id,
+					Timing:           &atp.Timing{},
+					PrimaryBuildInfo: buildInfo,
+				},
+			},
+		},
+		{
+			name: "TF_Pass",
+			results: []*api.TestCaseResult{
+				{
+					TestCaseId: &api.TestCase_Id{Value: "testcase#test1a#test1b"},
+					Verdict:    &api.TestCaseResult_Pass_{},
+					StartTime:  &timestamppb.Timestamp{Seconds: 1733521299, Nanos: 52000000},
+					Duration:   &durationpb.Duration{Seconds: 421},
+				},
+				{
+					TestCaseId: &api.TestCase_Id{Value: "testcase#testname2"},
+					Verdict:    &api.TestCaseResult_Fail_{},
+					Errors:     []*api.TestCaseResult_Error{{Message: "error"}},
+				},
+			},
+			expectWU: &atp.WorkUnit{
+				Name:       "testcase",
+				ParentId:   parentWU.Id,
+				Type:       "TF_TEST_RUN",
+				Properties: trProps,
+			},
+			wantResults: []*atp.TestResult{
+				{
+					TestIdentifier: &atp.TestIdentifier{
+						Module:           parentWU.Name,
+						ModuleParameters: testIdentifierProps,
+						TestClass:        "testcase",
+						Method:           "test1a#test1b",
+					},
+					TestStatus: "pass",
+					Properties: trProps,
+					WorkUnitId: returnWUID,
+					Timing: &atp.Timing{
+						CreationTimestamp: 1733521299052,
+						CompleteTimestamp: 1733521720052,
+					},
+					PrimaryBuildInfo: buildInfo,
+				},
+				{
+					TestIdentifier: &atp.TestIdentifier{
+						Module:           parentWU.Name,
+						ModuleParameters: testIdentifierProps,
+						TestClass:        "testcase",
+						Method:           "testname2",
+					},
+					TestStatus:       "fail",
+					Properties:       trProps,
+					WorkUnitId:       returnWUID,
+					Timing:           &atp.Timing{},
+					PrimaryBuildInfo: buildInfo,
+					DebugInfo:        &atp.DebugInfo{ErrorMessage: "error"},
+				},
+			},
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.expectWU != nil {
+				returnWU := &atp.WorkUnit{
+					Name:       tc.expectWU.Name,
+					Id:         returnWUID,
+					ParentId:   tc.expectWU.ParentId,
+					Properties: tc.expectWU.Properties,
+				}
+				mockWU.EXPECT().Insert(tc.expectWU).Return(returnWU, nil)
+			}
+			gotEntries, gotToken, err := aps.resultEntries(ctx, parentWU, 0, tc.results, buildInfo)
+			if err != nil {
+				t.Errorf("Unexpected error: %q", err)
+			}
+			if gotToken != int64(len(tc.results)) {
+				t.Errorf("Unexpected token: got %d, want %d", gotToken, len(tc.results))
+			}
+
+			for i, entry := range gotEntries {
+				if diff := cmp.Diff(entry.TestResult, tc.wantResults[i], protocmp.Transform()); diff != "" {
+					t.Errorf("%s", diff)
+				}
+			}
+		})
+	}
+}
+
+func TestUploadResults(t *testing.T) {
+	invID := "I123"
+	parentCtx := context.Background()
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+
+	mockCtl := gomock.NewController(t)
+	defer mockCtl.Finish()
+
+	mockTRService := mock_androidapi.NewMockTestResultService(mockCtl)
+	aps := &AntsPublishService{
+		metadata: &metadata.PublishAntsMetadata{AntsInvocationId: invID},
+		service:  &androidlib.Service{TestResultService: mockTRService},
+	}
+	testCases := []struct {
+		name         string
+		entries      []*atp.BatchInsertEntry
+		chunkSize    int
+		expectations func()
+	}{
+		{
+			name: "evenChunks",
+			entries: []*atp.BatchInsertEntry{
+				{TestResult: &atp.TestResult{AttemptNumber: 1}},
+				{TestResult: &atp.TestResult{AttemptNumber: 2}},
+			},
+			chunkSize: 1,
+			expectations: func() {
+				mockTRService.EXPECT().BatchInsert(ctx, invID, gomock.Any()).Return(nil, nil).Times(2)
+			},
+		},
+		{
+			name: "oddChunks",
+			entries: []*atp.BatchInsertEntry{
+				{TestResult: &atp.TestResult{AttemptNumber: 1}},
+				{TestResult: &atp.TestResult{AttemptNumber: 2}},
+				{TestResult: &atp.TestResult{AttemptNumber: 3}},
+			},
+			chunkSize: 2,
+			expectations: func() {
+				mockTRService.EXPECT().BatchInsert(ctx, invID, gomock.Any()).Return(nil, nil).Times(2)
+			},
+		},
+		{
+			name: "noChunks",
+			entries: []*atp.BatchInsertEntry{
+				{TestResult: &atp.TestResult{AttemptNumber: 1}},
+				{TestResult: &atp.TestResult{AttemptNumber: 2}},
+				{TestResult: &atp.TestResult{AttemptNumber: 3}},
+			},
+			chunkSize: 5,
+			expectations: func() {
+				mockTRService.EXPECT().BatchInsert(ctx, invID, gomock.Any()).Return(nil, nil).Times(1)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.expectations != nil {
+				tc.expectations()
+			}
+
+			err := aps.uploadResults(parentCtx, tc.entries, tc.chunkSize)
+			if err != nil {
+				t.Errorf("Unexpected error for uploadResults(): %q", err)
+			}
+		})
+	}
+}
+
+func TestUploadResultPartners(t *testing.T) {
+	ctx := context.Background()
+	testCases := []struct {
+		name      string
+		accountID string
+	}{
+		{
+			name:      "partner",
+			accountID: "2",
+		},
+		{
+			name:      "internal",
+			accountID: "1",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			aps := &AntsPublishService{
+				metadata: &metadata.PublishAntsMetadata{
+					AccountId: tc.accountID,
+				},
+			}
+
+			err := aps.UploadToAnts(ctx)
+			if err != nil {
+				t.Errorf("Unexpected error for result upload.")
+			}
+
+			err = aps.UploadArtifacts(ctx)
+			if err != nil {
+				t.Errorf("Unexpected error for artifacts upload.")
+			}
+		})
+	}
+}
+
+func TestUpdateParentWorkUnitProperties(t *testing.T) {
+	mockCtl := gomock.NewController(t)
+	defer mockCtl.Finish()
+	mockWU := mock_androidapi.NewMockWorkUnitService(mockCtl)
+	wuID := "WU123"
+
+	testCases := []struct {
+		name    string
+		props   []*atp.Property
+		wantErr bool
+	}{
+		{
+			name: "existing",
+			props: []*atp.Property{
+				{Name: "pizza", Value: "cheese"},
+			},
+		},
+		{
+			name:    "error",
+			wantErr: true,
+		},
+		{
+			name: "none",
+		},
+	}
+	executionInfo := &artifact.ExecutionInfo{
+		DutInfo: &artifact.DutInfo{
+			Dut: &labapi.Dut{
+				DutType: &labapi.Dut_Chromeos{
+					Chromeos: &labapi.Dut_ChromeOS{
+						DutModel: &labapi.DutModel{BuildTarget: "brya", ModelName: "vell"},
+						Sku:      "pujj_10G",
+					},
+				},
+			},
+		},
+	}
+
+	aps := &AntsPublishService{
+		service: &androidlib.Service{WorkUnitService: mockWU},
+		metadata: &metadata.PublishAntsMetadata{
+			ParentWorkUnitId:     wuID,
+			PrimaryExecutionInfo: executionInfo,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			wu := &atp.WorkUnit{Id: wuID, Properties: tc.props}
+			wantWU := &atp.WorkUnit{Id: wuID, Properties: tc.props}
+			_, props, _ := aps.testProperties(nil)
+			wantWU.Properties = append(wantWU.Properties, props...)
+			mockWU.EXPECT().Get(wuID).Return(wu, nil)
+			if tc.wantErr {
+				mockWU.EXPECT().Update(wuID, gomock.Any()).Return(nil, errors.New("err"))
+			} else {
+				mockWU.EXPECT().Update(wuID, wantWU).Return(wu, nil)
+			}
+			err := aps.updateParentWorkUnitProperties()
+			if tc.wantErr != (err != nil) {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}

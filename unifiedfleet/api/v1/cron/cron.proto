@@ -1,0 +1,19 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package unifiedfleet.api.v1.cron;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/api/v1/cron;cron";
+
+import "google/protobuf/empty.proto";
+
+service Cron {
+  rpc TriggerCronJob(TriggerCronJobReq) returns (google.protobuf.Empty);
+}
+
+message TriggerCronJobReq{
+  string job_name = 1;
+}

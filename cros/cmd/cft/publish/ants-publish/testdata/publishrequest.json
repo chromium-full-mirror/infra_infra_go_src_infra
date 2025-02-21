@@ -1,0 +1,31 @@
+{
+  "artifactDirPath": {
+    "hostType": "LOCAL",
+    "path": "/tmp/rdb-publish-test-artifacts/"
+  },
+  "testResponse": {
+    "testCaseResults": [
+      {
+        "testCaseId": {
+          "value": "module1.testcase1.test1"
+        }
+      },
+      {
+        "testCaseId": {
+          "value": "module1.testcase1.test2"
+        }
+      },
+      {
+        "testCaseId": {
+          "value": "module2.testcase2.test3"
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "@type": "type.googleapis.com/chromiumos.test.api.metadata.PublishAntsMetadata",
+    "antsInvocationId": "Inv1234",
+    "parentWorkUnitId": "workUnit123",
+    "accountId": "1"
+  }
+}

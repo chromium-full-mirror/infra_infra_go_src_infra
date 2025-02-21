@@ -1,0 +1,22 @@
+cron:
+- description: Import config.cfg from LUCI Config
+  url: /internal/cron/import-service-config
+  schedule: every 10 minutes
+
+- description: Device config data periodic refresh
+  url: /internal/cron/sync-dev-config
+  schedule: every 1 hours
+
+- description: Dump other configs' snapshots
+  url: /internal/cron/dump-other-configs-snapshot
+  schedule: every day 00:01
+  timezone: America/Los_Angeles
+
+- description: Dump inventory snapshot
+  url: /internal/cron/dump-inventory-snapshot
+  schedule: every day 00:00
+  timezone: America/Los_Angeles
+
+- description: Backfill manual repair records indexes
+  url: /internal/cron/backfill-mr-indexes
+  schedule: 1 of jan 00:00

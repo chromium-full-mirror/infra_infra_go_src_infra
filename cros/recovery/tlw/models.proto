@@ -1,0 +1,1085 @@
+// Copyright 2022 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package chromeos.recovery;
+
+option go_package = "go.chromium.org/infra/cros/recovery/tlw;tlw";
+
+import "google/protobuf/duration.proto";
+import "go.chromium.org/chromiumos/config/proto/chromiumos/config/api/test/xmlrpc/xmlrpc.proto";
+import "go.chromium.org/chromiumos/config/proto/chromiumos/test/lab/api/usb_drive.proto";
+import "go.chromium.org/chromiumos/config/proto/chromiumos/test/lab/api/cbi.proto";
+import "go.chromium.org/chromiumos/config/proto/chromiumos/test/lab/api/wifi_router.proto";
+import "go.chromium.org/chromiumos/config/proto/chromiumos/test/lab/api/bluetooth_peer.proto";
+
+// RunRequest represents result of executed command.
+message RunRequest {
+  // Resource name
+  string resource = 1;
+  // Command executed on the resource.
+  string command = 2;
+  // Command arguments.
+  repeated string args = 3;
+  // Command execution timeout.
+  google.protobuf.Duration timeout = 4;
+  // Run command in background.
+  bool in_background = 5;
+  // SSH username to use. Leave unset to use default (root).
+  string ssh_username = 6;
+}
+
+// RunResult represents result of executed command.
+message RunResult {
+  // Full command executed on the resource.
+  string command = 1;
+  // Exit code return.
+  // Eg: 0 - everything is good
+  // 	   1 - executed stop with error code `1`
+  //     15 - timeout of execution
+  int32 ExitCode = 2;
+  // Standard output
+  string stdout = 3;
+  // Standard error output
+  string stderr = 4;
+}
+
+// ProvisionRequest provides data to perform provisioning of the device.
+message ProvisionRequest {
+  // Resource name
+  string resource = 1;
+  // Path to system image.
+  // Path to the GS file.
+  // Example: gs://bucket/file_name
+  string system_image_path = 2;
+  // Prevent reboot during provision OS.
+  bool prevent_reboot = 3;
+}
+
+// CallBluetoothPeerRequest represents data to run command on bluetooth peer.
+message CallBluetoothPeerRequest {
+  // Resource name
+  string resource = 1;
+  // Method called on service.
+  string method = 2;
+  // Arguments provided to the service.
+  repeated chromiumos.config.api.test.xmlrpc.Value args = 3;
+}
+
+// CallBluetoothPeerResponse represents result data from running command on
+// bluetooth peer.
+message CallBluetoothPeerResponse {
+  chromiumos.config.api.test.xmlrpc.Value value = 1;
+  bool fault = 2;
+}
+
+// CallTouchHostdRequest represents data to run command on touchhost.
+message CallTouchHostdRequest {
+  // Resource name
+  string resource = 1;
+  // Method called on service.
+  string method = 2;
+  // Arguments provided to the service.
+  repeated chromiumos.config.api.test.xmlrpc.Value args = 3;
+  // Timeout
+  google.protobuf.Duration timeout = 4;
+}
+
+// CallTouchHostdResponse represents result data from running command on
+// touchhost.
+message CallTouchHostdResponse {
+  chromiumos.config.api.test.xmlrpc.Value value = 1;
+  bool fault = 2;
+}
+
+// RPMType is the RPM model/protocol attached to the device
+enum RPMType {
+  UNKNOWN = 0;
+  // Sentry Switched CDU
+  SENTRY = 1;
+  // IPPower 9850
+  IP9850 = 2;
+}
+
+// RunRPMActionRequest represents data to perform action on RPM outlet.
+message RunRPMActionRequest {
+  // Hostname of the DUT.
+  string hostname = 1;
+  // Hostname of the RPM power unit, e.g. "chromeos6-row13_14-rack15-rpm2".
+  string rpm_hostname = 2;
+  // Name to locate a specific outlet from a RPM power unit, e.g. ".A7".
+  string rpm_outlet = 3;
+  // Action represents action expecting to perform on power supplier.
+  enum Action {
+    UNSPECIFIED = 0;
+    // Switch state to ON.
+    ON = 1;
+    // Switch state to OFF.
+    OFF = 2;
+    // Switch state to OFF and then ON with delay 5 seconds.
+    CYCLE = 3;
+  }
+  // Expected state to switch on.
+  Action action = 4;
+  // RPM type to operate on
+  RPMType rpm_type = 5;
+}
+
+// RPMOutlet is remote power management outlet allows perform an action to do
+// OFF/ON/CYCLE on it.
+message RPMOutlet {
+  // Hostname of the RPM power unit, e.g. "chromeos6-row13_14-rack15-rpm2".
+  string hostname = 1;
+  // Name to locate a specific outlet from a RPM power unit, e.g. ".A7".
+  string outlet = 2;
+  // RPMState describes the state of RPM outlet.
+  enum State {
+    UNSPECIFIED = 0;
+    // Configuration for RPM outlet missed which block from execution the
+    // actions.
+    MISSING_CONFIG = 1;
+    // Configuration for RPM outlet provided but does not working which can be
+    // several reasons.
+    WRONG_CONFIG = 2;
+    // RPM outlet can successfully perform the actions.
+    WORKING = 3;
+  }
+  // State of the component.
+  State state = 3;
+  // RPM type to operate on
+  RPMType type = 4;
+}
+
+// Router devices
+message WifiRouterHost {
+  // State of the device.
+  enum State {
+    UNSPECIFIED = 0;
+    WORKING = 1;
+    BROKEN = 2;
+  }
+
+  // Name name of router device e.g. "chromeos15-row99-rack33-host105-router".
+  string name = 1;
+  // The state of the wifi router.
+  State state = 2;
+  // The model of the router.
+  string model = 3;
+  // The board of the router. Deprecated as it is not used by anything anymore.
+  string board = 4 [deprecated = true];
+  // RPMOutlet the router power connects to if it exists.
+  RPMOutlet RPMOutlet = 5;
+
+  // Supported test router hardware and software features.
+  repeated chromiumos.test.lab.api.WifiRouterFeature features = 6;
+
+  // The type of router device this is (e.g. OpenWrt-based, ChromeOS Gale).
+  chromiumos.test.lab.api.WifiRouterDeviceType device_type = 7;
+}
+
+message AsusWrtRouterControllerState {
+  string asus_model = 1;
+}
+
+message OpenWrtRouterControllerState {
+  chromiumos.test.lab.api.CrosOpenWrtImageBuildInfo device_build_info = 1;
+  chromiumos.test.lab.api.OpenWrtWifiRouterDeviceConfig config = 2;
+  string expected_image_uuid = 3;
+}
+
+// UbuntuRouterControllerState holds exec state information for wifirouter
+// execs that use the UbuntuRouterController.
+// Used only as internal state for scope. Do not use for store data.
+message UbuntuRouterControllerState {
+  // The system product name as specified in the device's DMI table.
+  string system_product_name = 1;
+  // The name of the network controller found on the device.
+  string network_controller_name = 2;
+}
+
+// BluetoothPeerScopeState holds exec state information for btpeer execs.
+// Meant to describe the exec state for a single btpeer.
+// Used only as internal state for scope. Do not use for store data.
+message BluetoothPeerScopeState {
+  // Chameleond holds data related to the state of chameleond on the btpeer.
+  message Chameleond {
+    // The commit of chameleond at which the bundle installed on the btpeer was created.
+    string installed_commit = 1;
+    // The BluetoothPeerChameleondConfig as retrieved from the global config
+    // JSON file stored on GCS. Includes information regarding available
+    // chameleond bundle releases for all btpeers.
+    chromiumos.test.lab.api.BluetoothPeerChameleondConfig release_config = 2;
+    // The config of the chameleond bundle from the release_config that has been
+    // identified as the expected bundle for this specific btpeer.
+    chromiumos.test.lab.api.BluetoothPeerChameleondConfig.ChameleondBundle expected_bundle_config = 3;
+  }
+  // RaspiosCrosBtpeerImage holds data related to the state of a ChromeOS
+  // Raspberry Pi OS image on the btpeer.
+  message RaspiosCrosBtpeerImage {
+    // The UUID of the ChromeOS Raspberry Pi OS image installed on the btpeer.
+    string installed_image_uuid = 1;
+    // The RaspiosCrosBtpeerImageConfig as retrieved from the global config JSON
+    // file stored on GCS. Includes information regarding available image
+    // releases for all btpeers.
+    chromiumos.test.lab.api.RaspiosCrosBtpeerImageConfig release_config = 2;
+    // The config of the image from the release_config that has been identified
+    // as the expected image for this specific btpeer.
+    chromiumos.test.lab.api.RaspiosCrosBtpeerImageConfig.OSImage expected_image_config = 3;
+  }
+  // Reference to the BluetoothPeer device this state is for.
+  BluetoothPeer btpeer = 1;
+  // Chameleond state info for this btpeer.
+  Chameleond chameleond = 2;
+  // RaspiosCrosBtpeerImage state info for this btpeer.
+  RaspiosCrosBtpeerImage raspios_cros_btpeer_image = 3;
+}
+
+
+// CrosAudio holds infor for audio information of the DUT.
+message DUTAudio {
+  // Indicate if the DUT is housed in an audio box to record / replay audio
+  // for audio testing.
+  bool in_box = 1;
+  // Indicate if the DUT is connected to Atrus speakermic
+  bool atrus = 2;
+  // Indicate if the DUT is connected to chameleon through static audio cable
+  bool static_cable = 3;
+  // LoopbackState representes states for loopback dongle.
+  enum LoopbackState {
+    LOOPBACK_UNSPECIFIED = 0;
+    // Device and software on it is working as expected.
+    LOOPBACK_WORKING = 1;
+  }
+  // Audio loopback dongle is plugged in.
+  LoopbackState loopback_state = 4;
+
+  // The type of Audio Beamforming on the DUT.
+  string beamforming = 5;
+}
+
+// InitServodRequest represents data to initiate servod daemon on servo-host.
+message InitServodRequest {
+  // Resource name of device.
+  string resource = 1;
+  // ServodOptions options to provide options for servod daemon.
+  ServodOptions options = 2;
+  // Prepare servo-host without servod service.
+  bool no_servod = 3;
+}
+
+// ServodOption represents options to start servod.
+message ServodOptions {
+  // Board of DUT connected to servod.
+  string dut_board = 1;
+  // Model of DUT connected to servod.
+  string dut_model = 2;
+  // Port assigned to servod.
+  int32 servod_port = 3;
+  // Servo board serial.
+  string servo_serial = 4;
+  // Specified dual setup for servod.
+  bool servo_dual = 5;
+  // Specified if need apply CR50 config.
+  bool use_cr50_config = 6;
+  // Use recovery mode when start servod.
+  bool recovery_mode = 7;
+}
+
+// ServoTopology describes servo devices used to provide servo functionality.
+message ServoTopology {
+  ServoTopologyItem root = 1;
+  repeated ServoTopologyItem children = 2;
+}
+
+// ServoTopologyItem describes details of one servo device.
+message ServoTopologyItem {
+  // type provides the type of servo device. Keeping as String to avoid issue
+  // with introduce new type.
+  string type = 1;
+  // sysfs_product provides the product name of the device recorded in File
+  // System.
+  string sysfs_product = 2;
+  // serial provides the serial number of the device.
+  string serial = 3;
+  // usb_hub_port provides the port connection to the device.
+  // e.g. '1-6.2.2' where
+  //   '1-6'  - port on the labstation
+  //   '2'    - port on smart-hub connected to the labstation
+  //   '2'    - port on servo hub (part of servo_v4 or servo_v4.1) connected to
+  //   the smart-hub
+  // The same path will look '1-6.2' if connected servo_v4 directly to the
+  // labstation.
+  string usb_hub_port = 4;
+
+  // This is the complete path on the file system for the servo device.
+  string sysfs_path = 5;
+  // This is the version of servo device.
+  string fw_version = 6;
+}
+
+// HardwareState describes the state of hardware components.
+enum HardwareState {
+  // keep for all unspecified state by default.
+  HARDWARE_UNSPECIFIED = 0;
+  // Hardware is in good shape and pass all verifiers.
+  HARDWARE_NORMAL = 1;
+  // Hardware is still good but some not critical verifiers did not pass or
+  // provided border values. (used for DUT storage when usage reached 98%)
+  HARDWARE_ACCEPTABLE = 2;
+  // Hardware is broken or bad (did not pass verifiers).
+  HARDWARE_NEED_REPLACEMENT = 3;
+  // Hardware is not detected to run verifiers.
+  // (used for USB-drive when it expected but not detected on the device)
+  HARDWARE_NOT_DETECTED = 4;
+}
+
+// Servo Firmware Channel describes the firmware expected to have on servos.
+enum ServoFwChannel {
+  FW_UNSPECIFIED = 0;
+  // Servo firmware from Stable channel.
+  STABLE = 1;
+  // The previous Servo firmware from Stable channel.
+  PREV = 2;
+  // Servo firmware from Dev channel.
+  DEV = 3;
+  // Servo firmware from Alpha channel.
+  ALPHA = 4;
+}
+
+// ServoHost holds info about host to manage servod services and verify
+// connected servo devices. Example: labstation, servo-host container.
+message ServoHost {
+  // Name is the resource name.
+  string Name = 1;
+  // State of the servo.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Device and software on it is working as expected.
+    WORKING = 1;
+    // Configuration for device is not provided.
+    MISSING_CONFIG = 2;
+    // Configuration contains incorrect information.
+    WRONG_CONFIG = 3;
+    // Device is not connected/plugged.
+    NOT_CONNECTED = 4;
+    // Device is not reachable over ssh.
+    NO_SSH = 5;
+    // Device is broken or not working as expected. the state used if no
+    // specified state for the issue.
+    BROKEN = 6;
+    // Device cannot be repaired or required manual attention to fix/replace it.
+    NEED_REPLACEMENT = 7;
+    // Cr50 console missing or unresponsive.
+    CR50_CONSOLE_MISSING = 8;
+    // Servod daemon cannot start on servo-host because cr50 testlab not
+    // enabled.
+    CCD_TESTLAB_ISSUE = 9;
+    // Servod daemon cannot start on servo-host.
+    SERVOD_ISSUE = 10;
+    // Device lid is not open.
+    LID_OPEN_FAILED = 11;
+    // The ribbon cable between servo and DUT is broken or not connected.
+    BAD_RIBBON_CABLE = 12;
+    // The EC on the DUT has issue.
+    EC_BROKEN = 13;
+    // Servo is not connected to the DUT.
+    DUT_NOT_CONNECTED = 14;
+    // Some component in servo-topology missed or not detected.
+    TOPOLOGY_ISSUE = 15;
+    // SBU voltage issues effect CR50 detection.
+    SBU_LOW_VOLTAGE = 16;
+    // CR50 SBU voltage detected but device was not enumerated.
+    CR50_NOT_ENUMERATED = 17;
+    // Servo serial mismatch, when servo not detected and another serial
+    // detected on previous used port.
+    SERVO_SERIAL_MISMATCH = 18;
+    // Issue to connect to servod by XMLRPC proxy.
+    SERVOD_PROXY_ISSUE = 19;
+    // Issue related to servo-host. Timeout to start servod or issue with
+    // detecting devices.
+    SERVO_HOST_ISSUE = 20;
+    // Issue related to servo_updater on the servo-host.
+    SERVO_UPDATER_ISSUE = 21;
+    // Issue related to power button pin on the servo host.
+    SERVOD_DUT_CONTROLLER_MISSING = 22;
+    // Issue related to cold reset pin on the DUT.
+    COLD_RESET_PIN_ISSUE = 23;
+    // Issue related to warm reset pin on the DUT.
+    WARM_RESET_PIN_ISSUE = 24;
+    // Issue related to power button pin on the DUT.
+    POWER_BUTTON_PIN_ISSUE = 25;
+    // The servo device connected to debug header is not detected.
+    // Reported by dut_controller_missing_fault control.
+    DEBUG_HEADER_SERVO_MISSING = 27;
+  }
+  State state = 2;
+  // Serial number of the root servo device.
+  string serial_number = 3;
+  // Channel of firmware used on servo devices.
+  ServoFwChannel firmware_channel = 4;
+  // Self representation of servo-setup by servod.
+  // Example: servo_v4_with_servo_micro, servo_v4_with_ccd_cr50.
+  string servod_type = 5;
+  // State of the USB-key connected to the servo.
+  HardwareState usbkey_state = 6;
+  // Port user on the host to run servod daemon. Expected value between 9900
+  // and 9999.
+  int32 servod_port = 7;
+  // Smart USB-hub is present on setup.
+  bool smart_usbhub_present = 8;
+  // Servo Topology of servo devices.
+  ServoTopology servo_topology = 9;
+  // Name of the servod container if the servo uses a
+  // servod-container.
+  string container_name = 10;
+  // UsbDrive contains details of the servo's plugged USB drive.
+  chromiumos.test.lab.api.UsbDrive usb_drive = 11;
+}
+
+// ProvisionedInfo holds info about provisioned info for the DUT.
+message ProvisionedInfo {
+  // CrosVersion tells which ChromeOS version is on the DUT.
+  // Example: board-release/R90-13816.47.0
+  string cros_version = 1;
+  // JobRepoUrl provide path to download client code to the DUT.
+  // Example: http://{cache_server}:8082/download/{gs_path}
+  string job_repo_url = 2;
+}
+
+// Storage holds info about internal storage of the DUT.
+message Storage {
+  // State of the component.
+  HardwareState state = 1;
+  // Type describes which type or storage used on the DUT.
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    SSD = 1;
+    HDD = 2;
+    MMC = 3;
+    NVME = 4;
+    UFS = 5;
+  }
+  // Type of storage used on device.
+  Type type = 2;
+}
+
+// Chameleon holds info about chameleon device.
+message Chameleon {
+  // Name is the resource name.
+  string name = 1;
+  // State describes the state of chameleon device.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Device and software on it is working as expected.
+    WORKING = 1;
+    // Device is broken or not working as expected.
+    BROKEN = 2;
+    // Device State is not applicable.
+    NOT_APPLICABLE = 3;
+  }
+  // State of the device.
+  State state = 2;
+  // RPMOutlet of the Chameleon.
+  RPMOutlet RPMOutlet = 3;
+  // AudioBoxJackPluggerState describes the state of AudioboxJackplugger
+  enum AudioBoxJackPluggerState {
+    AUDIOBOX_JACKPLUGGER_UNSPECIFIED = 0;
+    // Device and software on it is working as expected.
+    AUDIOBOX_JACKPLUGGER_WORKING = 1;
+    // Device is broken or not working as expected.
+    AUDIOBOX_JACKPLUGGER_BROKEN = 2;
+    // Device is not applicable to this testbed
+    AUDIOBOX_JACKPLUGGER_NOT_APPLICABLE = 3;
+  }
+  // State of the AudioBoxJackPlugger
+  AudioBoxJackPluggerState audioboxjackpluggerstate = 4;
+}
+
+// BluetoothPeer models a Bluetooth peer device and its state as used by
+// recovery.
+message BluetoothPeer {
+  // Name is the resource name.
+  string name = 1;
+  // State describes the state of bluetooth peer device.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Device and software on it is working as expected.
+    WORKING = 1;
+    // Device is broken or not working as expected.
+    BROKEN = 2;
+  }
+  // State of the device.
+  State state = 2;
+}
+
+// Wifi holds info about internal wifi of the DUT.
+message Wifi {
+  // State of the component.
+  HardwareState state = 1;
+  // Name of wifi chip used on the device.
+  string chip_name = 2;
+}
+
+// Bluetooth holds info about internal bluetooth of the DUT.
+message Bluetooth {
+  // State of the component.
+  HardwareState state = 1;
+  // The hardware expected present based on hardware feature.
+  bool expected = 2;
+}
+
+// Cellular holds info about the cellular of the DUT.
+message Cellular {
+  // State of the modem.
+  HardwareState modem_state = 1;
+  // Device carrier.
+  string carrier = 2;
+  // Model variant.
+  string model_variant = 3;
+  
+  // Type of modem hardware.
+  enum ModemType {
+    MODEM_TYPE_UNSPECIFIED = 0;
+    MODEM_TYPE_UNSUPPORTED = 8;
+    // Qualcomm modem
+    MODEM_TYPE_QUALCOMM_SC7180 = 1;
+    // Fibocomm modem
+    MODEM_TYPE_FIBOCOMM_L850GL = 2;
+    // NL668
+    MODEM_TYPE_NL668 = 3;
+    // FM350
+    MODEM_TYPE_FM350 = 4;
+    // FM101
+    MODEM_TYPE_FM101 = 5;
+    // SC7280
+    MODEM_TYPE_QUALCOMM_SC7280 = 6;
+    // EM060
+    MODEM_TYPE_EM060 = 7;
+    // RW101
+    MODEM_TYPE_RW101 = 9;
+    // RW135
+    MODEM_TYPE_RW135 = 10;
+    // LCUK54
+    MODEM_TYPE_LCUK54 = 11;
+  }
+  message ModemInfo {
+    ModemType type = 1;
+    // Equipment Identifier
+    string imei = 2;
+  }
+  // Modem-specific label info.
+  ModemInfo modem_info = 4;
+
+  // The network operator for a particular SIM.
+  enum NetworkProvider {
+    NETWORK_UNSPECIFIED = 0;
+    NETWORK_UNSUPPORTED = 5;
+    NETWORK_TEST = 1;
+    NETWORK_ATT = 2;
+    NETWORK_TMOBILE = 3;
+    NETWORK_VERIZON = 4;
+    NETWORK_SPRINT = 6;
+    NETWORK_DOCOMO = 7;
+    NETWORK_SOFTBANK = 8;
+    NETWORK_KDDI = 9;
+    NETWORK_RAKUTEN = 10;
+    NETWORK_VODAFONE = 11;
+    NETWORK_EE = 12;
+    NETWORK_AMARISOFT = 13;
+    NETWORK_ROGER = 14;
+    NETWORK_BELL = 15;
+    NETWORK_TELUS = 16;
+    NETWORK_FI = 17;
+    NETWORK_CBRS = 18;
+    NETWORK_LINEMO = 19;
+    NETWORK_POVO = 20;
+    NETWORK_HANSHIN = 21;
+  }
+
+  // The type of SIM in the slot.
+  enum SIMType {
+    SIM_UNSPECIFIED = 0;
+    SIM_PHYSICAL = 1;
+    SIM_DIGITAL = 2;
+  }
+
+  // Information on the profiles available on the SIM.
+  message SIMProfileInfo {
+    // The unique profile ICCID.
+    string iccid = 1;
+    // The associated PUK code.
+    string sim_pin = 2;
+    // The associated PUK code.
+    string sim_puk = 3;
+    // The associated network provider.
+    NetworkProvider carrier_name = 4;
+    // The phone number associated with the SIM.
+    string own_number = 5;
+    // The state of the cellular network connection.
+    State state = 6;
+    // The ICCID detected during repair.
+    string detected_iccid = 7;
+    // The OwnNumber detected during repair.
+    string detected_own_number = 8;
+
+    // The allowed cellular connection states as reported by the modem.
+    enum State {
+      // Connection state not defined.
+      UNSPECIFIED = 0;
+      // The device is unusable.
+      BROKEN = 1;
+      // The device needs to be unlocked.
+      LOCKED = 2;
+      // No data connection available and not in a failed state.
+      NO_NETWORK = 3;
+      // The device is registered with a network provider, and data connections and messaging may be available for use.
+      WORKING = 4;
+      // The configuration in UFS doesn't match what is on the SIM or is incomplete.
+      WRONG_CONFIG = 5;
+    }
+
+    // Features supported by the profile.
+    repeated Feature features = 9;
+
+    // Possible features that the SIM supports.
+    enum Feature {
+      // Unset feature.
+      FEATURE_UNSPECIFIED = 0;
+      // The SIM supports a generic live network.
+      FEATURE_LIVE_NETWORK = 1;
+      // The SIM supports SMS messaging.
+      FEATURE_SMS = 2;
+    }
+  }
+
+  // Information on a single SIM card in a slot.
+  message SIMInfo {
+    // Which slot on the device the SIM card occupies.
+    int32 slot_id = 1;
+    SIMType type = 2;
+    // The unique SIM EID.
+    string eid = 3;
+    // True if the SIM is a test-eSIM (not prod).
+    bool test_esim = 4;
+    // The available profiles on the SIM card.
+    repeated SIMProfileInfo profile_infos = 5;
+  }
+
+  // Information on all SIMs available on the DUT.
+  repeated SIMInfo sim_infos = 5;
+
+  // Information on all carrier dependencies that can be satisfied by this DUT.
+  repeated string supported_carriers = 6;
+
+  // State of the starfish connected to the device.
+  StarfishState starfish_state = 7;
+
+  // StarfishState describes the state of a starfish device in a testbed.
+  enum StarfishState {
+    STARFISH_STATE_UNSPECIFIED = 0;
+    // Starfish is working and SIMS detected as expected.
+    STARFISH_STATE_WORKING = 1;
+    // Starfish is not working or SIMs are not detected as expected.
+    STARFISH_STATE_BROKEN = 2;
+    // Does not apply to this device.
+    STARFISH_STATE_NOT_APPLICABLE = 3;
+  }
+}
+
+// Battery holds info about battery of the DUT.
+message Battery {
+  // State of the component.
+  HardwareState state = 1;
+}
+
+// HumanMotionRobot holds info about human motion robot of the DUT
+message HumanMotionRobot {
+  // Hostname of HMR-Pi
+  string name = 1;
+
+  // State describes the state of device.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Device and software on it is working as expected.
+    WORKING = 1;
+    // Device is broken or not working as expected.
+    BROKEN = 2;
+    // Device State is not applicable.
+    NOT_APPLICABLE = 3;
+  }
+
+  // State of the device.
+  State state = 2;
+
+  // Hostname of Gateway host (touchhost) Pi
+  string touchhost = 3;
+}
+
+// Dolos holds info about a Dolos device of the DUT.
+message Dolos {
+  // Serial used to identify device over USB
+  string serial_cable = 1;
+  // Serial of the cable_cable
+  string serial_usb = 2;
+
+  enum DolosHWMajorRevision {
+    // Default unset value
+    DOLOS_UNSPECIFIED = 0;
+    DOLOS_V1 = 1;
+  }
+
+  // Hardware revision
+  DolosHWMajorRevision hw_major_revision = 3;
+  // Dolos firmware version
+  string fw_version = 4;
+  // Hostname of the host machine the dolos connected to via USB cable.
+  string hostname = 5;
+
+  // State describes the state of Dolos.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    WORKING = 1 [deprecated=true];
+    BROKEN = 2 [deprecated=true];
+    NOT_APPLICABLE = 3 [deprecated=true];
+    DOLOS_UNKNOWN = 4;
+    DOLOS_NO_POWER_SUPPLIED = 5;
+    DOLOS_OUTPUT_POWER_FAILED = 6;
+    DOLOS_BMS_STATE_INVALID = 7;
+    DOLOS_SMBUS_COMM_NOT_DETECTED = 8;
+    DOLOS_EEPROM_FAILURE = 9;
+    DOLOS_OK = 10;
+    DOLOS_NO_COMMUNICATION = 11;
+    DOLOS_NOT_PRESENT = 12;
+    NO_SSH = 13;
+  }
+
+  // State of the device.
+  State state = 6;
+
+  // RPMOutlet of the Dolos setup.
+  RPMOutlet rpm_outlet = 7;
+}
+
+// AudioLatencyToolkit holds info about Teensy audio latency toolkit on the DUT
+message AudioLatencyToolkit {
+  // Teensy Version
+  string version = 1; // default: "4.1"
+
+  // State describes the state of device.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Device and software on it is working as expected.
+    WORKING = 1;
+    // Device is broken or not working as expected.
+    BROKEN = 2;
+    // Device State is not applicable.
+    NOT_APPLICABLE = 3;
+  }
+
+  // State of the device.
+  State state = 2;
+}
+
+// FirmwareInfo hold info to describe FW information.
+message FirmwareInfo {
+  // Target names for EC and AP. In majority cases they are the same.
+  // Example: `target1` will generate names
+  //  ec: target1/ec/bin and target1/npcx_monitor.bin
+  //  ap: image-target1.bin
+  string ec_target = 1;
+  string ap_target = 2;
+}
+
+// Fingerprint holds info about the fingerprint hw on the dut.
+message Fingerprint {
+  // Fingerprint Board
+  string board = 1;
+
+  // Fingerprint MCU
+  string mcu = 2;
+
+  // Fingerprint Sensor
+  string sensor = 3;
+}
+
+// AMTManager holds info about AMT management on the DUT.
+message AMTManager {
+  // Hostname for the AMT management port.
+  string hostname = 1;
+
+  // State describes the state of AMT on the device.
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // The WS-Management endpoint is up.
+    WORKING = 1;
+    // Unable to connect to the WS-Management endpoint.
+    BROKEN = 2;
+    // Device state is not applicable.
+    NOT_APPLICABLE = 3;
+  }
+
+  State state = 2;
+
+  // Connect to AMT on port 16993 with TLS enabled.
+  bool use_tls = 3;
+}
+
+// Camera holds info about camera of the DUT
+message Camera {
+  // State of the component.
+  HardwareState state = 1;
+}
+
+// Chrome OS specific DUT details
+// NEXT TAG: 37
+message ChromeOS {
+  // Is OS based on Android.
+  // If not then based on Chrome.
+  bool is_android_based = 1;
+  // Board name of the DUT.
+  string board = 2;
+  // Model name of the DUT.
+  string model = 3;
+  // Hardware identifier.
+  string hwid = 4;
+  // Hardware phase.
+  string phase = 5;
+  // Serial number of the DUT.
+  string serial_number = 6;
+  // FirmwareInfo describes DUT firmware data.
+  FirmwareInfo firmware_info = 32;
+
+  // PowerSupplyType describes different power supply types for a DUT.
+  enum PowerSupplyType {
+    POWER_SUPPLY_UNSPECIFIED = 0;
+    // Primary power source of the devices is wall-power. Devices does not have
+    // a battery.
+    AC_ONLY = 1;
+    // Primary power source of the devices is battery. Devices still connected
+    // to wall-power to charge it.
+    BATTERY = 2;
+  }
+  // PowerSupplyType describes the DUT's power supply type.
+  PowerSupplyType power_supply_type = 7;
+  // Cr50Phase describes different phases of CR50 firmware used on DUT.
+  // Label indicating the cr50 image type.
+  enum Cr50Phase {
+    CR50_PHASE_UNSPECIFIED = 0;
+    CR50_PHASE_PVT = 1;
+    CR50_PHASE_PREPVT = 2;
+  }
+  // Cr50 firmware phase used on the DUT.
+  Cr50Phase cr50_phase = 8;
+  // Cr50KeyEnv describes key env for cr50 RW version.
+  // Label indicating the cr50 RW version.
+  enum Cr50KeyEnv {
+    CR50_KEYENV_UNSPECIFIED = 0;
+    CR50_KEYENV_PROD = 1;
+    CR50_KEYENV_DEV = 2;
+  }
+  // Key env for RW Cr50 firmware version.
+  Cr50KeyEnv cr50_key_env = 9;
+  // Audio info.
+  DUTAudio audio = 10;
+  // Stock-keeping unit of the DUT.
+  string device_sku = 11;
+  // DLM SKU ID of the DUT
+  string dlm_sku_id = 31;
+
+  // Physical parts of DUT.
+  // Internal storage info.
+  Storage storage = 12;
+  // Battery info.
+  Battery battery = 13;
+  // Wifi info.
+  Wifi wifi = 14;
+  // Bluetooth info.
+  Bluetooth bluetooth = 15;
+
+  // Peripheral devices.
+  // Servo setup of the DUT setup.
+  ServoHost servo = 16;
+  // Chameleon device of the DUT setup.
+  Chameleon chameleon = 17;
+  // BluetoothPeer info of DUT setup.
+  repeated BluetoothPeer bluetooth_peers = 18;
+
+  // Array of Wifi Router peripheral devices.
+  repeated WifiRouterHost wifi_routers = 19;
+  // PeripheralWifiState describes the state of peripheral wifi testbed.
+  enum PeripheralWifiState {
+    PERIPHERAL_WIFI_STATE_UNSPECIFIED = 0;
+    // All wifirouters are working as expected.
+    PERIPHERAL_WIFI_STATE_WORKING = 2;
+    // Not all wifirouters are working as expected.
+    PERIPHERAL_WIFI_STATE_BROKEN = 3;
+    // State is not applicable for setup.
+    PERIPHERAL_WIFI_STATE_NOT_APPLICABLE = 4;
+  }
+  // Peripheral Wifi state of testbed
+  PeripheralWifiState peripheral_wifi_state = 20;
+  // WifiRouterFeatures that are supported by all wifi routers in the testbed.
+  //
+  // If there are no wifi routers this will be empty.
+  // If any routers have unknown features, this will just have a single
+  // WIFI_ROUTER_FEATURE_UNKNOWN entry.
+  // If any routers' features has a WIFI_ROUTER_FEATURE_INVALID feature, a
+  // WIFI_ROUTER_FEATURE_INVALID feature will be included along with the other
+  // common, valid features.
+  // If there are no common, valid features between all routers, this will just
+  // have a single WIFI_ROUTER_FEATURE_INVALID entry.
+  repeated chromiumos.test.lab.api.WifiRouterFeature wifi_router_features = 27;
+
+  // RPMOutlet of the DUT setup.
+  RPMOutlet rpm_outlet = 21;
+  // Map of key value pairs from RO_VPD.
+  map<string, string> ro_vpd_map = 22;
+  // CBI contents on the DUT
+  chromiumos.test.lab.api.Cbi cbi = 23;
+
+  // Cellular info.
+  Cellular cellular = 24;
+
+  // Capability to support Chromebook X features
+  bool cbx = 25;
+
+  // Human Motion Robot info.
+  HumanMotionRobot human_motion_robot = 26;
+
+  // Testbed Capability info
+  TestbedCapability testbed_capability = 28;
+
+  // Audio Latency Toolkit info.
+  AudioLatencyToolkit audio_latency_toolkit = 29;
+
+  // Dolos device info.
+  Dolos dolos = 30;
+
+  string gpu_id = 33;
+
+  // AMT management info.
+  AMTManager amt_manager = 34;
+
+  // Camera info
+  Camera camera = 35;
+
+  // Fingerprint
+  Fingerprint fingerprint = 36;
+}
+
+// TestbedCapability specifies whether the testbed can execute certain tests.
+// It is used as test dependency - as the specific testbed required to run certain e2e tests.
+message TestbedCapability {
+  // Testbed that is unspecified
+  reserved 1;
+  // Testbed with specific setup and capable to run 3.5mm Audio jack detection tests on DUT.
+  bool audiojack = 2;
+  // Testbed with specific setup and capable to run USB audio peripherals tests on DUT.
+  bool usbaudio = 3;
+  // Testbed with specific setup and capable to run USB printer tests on DUT.
+  bool usbprinting = 4;
+  // Testbed with specific setup and capable to run HDMI peripherals tests on DUT.
+  bool hdmiaudio = 5;
+}
+
+// Android specific DUT details
+message Android {
+  reserved 1;
+  // Board name of the DUT.
+  string board = 2;
+  // Model name of the DUT.
+  string model = 3;
+  // Serial number of the DUT.
+  string serial_number = 4;
+  // Hostname to which the Android DUT is attached to.
+  string associated_hostname = 5;
+}
+
+// DevBoard specific DUT details.
+message DevBoard {
+  reserved 1;
+  // Board name of the DUT.
+  string board = 2;
+  // Model name of the DUT.
+  string model = 3;
+  // Serial number of the DUT.
+  string serial_number = 4;
+  // Peripheral devices.
+  // Servo setup of the DUT setup.
+  ServoHost servo = 5;
+}
+
+// CopyRequest represents data to perform copy data from/to resource.
+message CopyRequest {
+  // Resource name
+  string resource = 1;
+  // Path to source file or directory.
+  string path_source = 2;
+  // Path to destination file or directory.
+  string path_destination = 3;
+}
+
+// CallServodRequest represents data to run command on servod.
+message CallServodRequest {
+  string resource = 1;
+  string method = 2;
+  repeated chromiumos.config.api.test.xmlrpc.Value args = 3;
+  google.protobuf.Duration timeout = 4;
+}
+
+// CallServodResponse represents result data from running command on servod.
+message CallServodResponse {
+  chromiumos.config.api.test.xmlrpc.Value value = 1;
+  bool fault = 2;
+}
+
+// RepairRequest describes different repair-requests.
+enum RepairRequest {
+	REPAIR_REQUEST_UNKNOWN = 0;
+  // Request to re-provision DUT.
+  REPAIR_REQUEST_PROVISION = 1;
+  // Request to reimage DUT by USB-key.
+  REPAIR_REQUEST_REIMAGE_BY_USBKEY = 2;
+  // Request to re-download image to USB-key.
+  REPAIR_REQUEST_UPDATE_USBKEY_IMAGE = 3;
+  // Request to re-flash firmware of the DUT.
+  REPAIR_REQUEST_REFLASH_FW = 4;
+}
+
+// DUTSetupType describes different DUT setups.
+enum DUTSetupType {
+  UNSPECIFIED = 0;
+	// Special setup of servo-host represented as labstation.
+	LABSTATION = 1;
+	// Special setup for routers.
+	JETSTREAM = 2;
+	// Special setup for ChromeOS devices.
+	CROS = 3;
+	// Special setup for ChromeOS devices for browser testing.
+	CROS_BROWSER = 4;
+	// Special setup for Android devices.
+	ANDROID = 5;
+	// Special setup for IOS devices.
+	IOS = 6;
+	// Special setup for CrOSVM fake devices.
+	CROSVM = 7;
+	// Special setup for DevBoard devices.
+	DEV_BOARD = 8;
+}
+
+// This proto define common version info we want to record from a device.
+// Next Tag: 5
+message VersionInfo {
+  string os = 1;
+  string ro_firmware = 2;
+  string rw_firmware = 3;
+  // Need to exactly matches VersionInfo_OsType in UFS dut_state.
+  enum OsType {
+    UNKNOWN = 0;
+    CHROMEOS = 1;
+    ANDROID = 2;
+  }
+  OsType os_type = 4;
+}

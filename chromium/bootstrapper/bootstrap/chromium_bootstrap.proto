@@ -1,0 +1,87 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// The protos describing the properties controlling the chromium_bootstrap
+// recipe module
+
+syntax = "proto3";
+
+package chromium.bootstrapper.chromium_bootstrap;
+
+import "go.chromium.org/luci/buildbucket/proto/common.proto";
+import "go.chromium.org/luci/swarming/proto/api_v2/swarming.proto";
+
+option go_package = "go.chromium.org/infra/chromium/bootstrapper/bootstrap";
+
+// A CIPD location.
+//
+// Next ID: 5
+message Cipd {
+  string server = 1;
+  string package = 2;
+  string requested_version = 3;
+  string actual_version = 4;
+}
+
+// Information about the executable being bootstrapped.
+//
+// Next ID: 4
+message BootstrappedExe {
+  // The location that the bootstrapped executable is retrieved from.
+  oneof source {
+    Cipd cipd = 1;
+    swarming.v2.CASReference cas = 2;
+  }
+
+  repeated string cmd = 3;
+}
+
+// Information about from where the config was loaded
+//
+// Next ID: 3
+message ConfigSource {
+  // The commit at which the config was last changed
+  //
+  // This will enable the bootstrapped executable to apply the
+  // optimization to not perform a checkout so long as the version of
+  // the config on disk is the same version as was loaded by the
+  // bootstrapper.
+  buildbucket.v2.GitilesCommit last_changed_commit = 1;
+
+  // The path to the config
+  string path = 2;
+}
+
+// The input properties consumed by the chromium_bootstrap recipe module
+//
+// These will be set by the bootstrapper binary to communicate information about
+// the bootstrap operation that occurred. This enables the bootstrapped
+// executable to operate in a manner consistent with the bootstrapping process.
+//
+// Next ID: 5
+message ChromiumBootstrapModuleProperties {
+
+  // Any commits that were accessed by the bootstrapper binary
+  //
+  // Since the properties should be versioned along with the code, this will
+  // enable the bootstrapped executable to check out the same version of the
+  // code that the properties were retrieved from.
+  repeated buildbucket.v2.GitilesCommit commits = 1;
+
+  // Any reasons that the bootstrapped builder should skip analysis
+  //
+  // Some builders will use analyze to determine what targets need to be
+  // re-built and what tests need to be re-run. If reasons are specified, the
+  // builder should skip performing analysis and instead build all targets and
+  // run all tests.
+  repeated string skip_analysis_reasons = 2;
+
+  // The bootstrapped executable being executed.
+  //
+  // This will allow the builder to report the source of the executable.
+  BootstrappedExe exe = 3;
+
+  // The information about where the bootstrapped config was loaded
+  ConfigSource config_source = 4;
+}

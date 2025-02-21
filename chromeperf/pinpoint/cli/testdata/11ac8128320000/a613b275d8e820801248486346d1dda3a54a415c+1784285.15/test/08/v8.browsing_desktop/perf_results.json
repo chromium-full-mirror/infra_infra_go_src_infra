@@ -1,0 +1,956 @@
+[
+    {
+        "sampleValues": [
+            2478
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            2478,
+            7.8152,
+            2478,
+            2478,
+            2478,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "1d3defd2-f207-47ca-8b7d-293cd3f6a9c1",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "12360b15-374f-4eaa-8c40-f67b5b359d3e",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "81e972e5-9eb1-4432-9c2f-8ef3fbcbefc4",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "48ee8ef3-87db-4f78-9f9f-f009711f6df0",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "29": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            54294
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            54294,
+            10.90217,
+            54294,
+            54294,
+            54294,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "590b3649-a508-488b-9e49-0654fdcccb65",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "b3666e49-25b6-4fd8-947a-8097b2382bbc",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "d865870b-9a41-4392-9c4e-2bc8a77478bf",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "921fc460-9607-481a-adb6-894c547cc6b9",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "40": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            11483
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            11483,
+            9.3486,
+            11483,
+            11483,
+            11483,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "bef037ad-8587-4941-b0b9-223690b0abd2",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "08fdeefb-bdd7-482d-945f-8da3e98e8d2b",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "06a545d5-abdf-4db6-9c2a-fbd1d9d6a4fa",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "de0e0f6f-890c-4729-87a9-1bb4709cf4a8",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "34": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            400
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            400,
+            5.991,
+            400,
+            400,
+            400,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "73c573dc-e8d7-4109-8e04-3a15884cda2f",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "76ba58c9-fb41-486c-b3f8-a004819d8457",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "da00582e-c452-4cb0-b2fa-18981c52c917",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "6880ac0d-f549-40af-bc3d-d5649aad2ff8",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "22": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            9300
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            9300,
+            9.1378,
+            9300,
+            9300,
+            9300,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "dd5770cc-db66-437f-90c7-18d5bc7a8faa",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "4d9e98a6-0b38-47b2-8c70-90d61aea5ab5",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "e305d7cb-431b-4828-afa2-25d2b36fe333",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "229cfd9c-2b70-46d7-bf85-37eb4e185b03",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "34": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            1500
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            1500,
+            7.313,
+            1500,
+            1500,
+            1500,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "df527dea-463c-4c60-b48b-e8c63b9d476f",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "1491983b-4248-4bde-93be-efff7d61e804",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "3a5e89fe-3bd5-433b-8858-18a0336030c1",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "4b3708a5-651c-489d-a511-dec800b54937",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "27": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            2769
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            2769,
+            7.9262,
+            2769,
+            2769,
+            2769,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "d38b73d6-dc5a-4602-9ec4-2c308b4a49fe",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "f1a1d135-c1ce-4144-acd5-d22a61ad84e4",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "06b61c8d-2619-401a-a7dd-4df5af73a3ea",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "de0e0f6f-890c-4729-87a9-1bb4709cf4a8",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "29": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            2520
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            2520,
+            7.832,
+            2520,
+            2520,
+            2520,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "cf91fc44-7deb-4684-9129-04eff2172bb0",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "d2dd9a8b-3a25-4b86-af3b-15565c5df65b",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "065ff1a6-656d-47b2-89ff-cdd37121fb5c",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "26b90b38-8c34-4f41-8375-08f09670ba5a",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "29": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            6493
+        ],
+        "name": "Optimize-Background:count",
+        "running": [
+            1,
+            6493,
+            8.7785,
+            6493,
+            6493,
+            6493,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "2d18e799-d514-40d7-8d56-7f4ca52fc56c",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "a8e025d3-7db2-43f3-aa9c-50eebab752cc",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "660093ee-cdfa-40a3-88ed-e194358f42bc",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "48923dfb-397c-47bd-afea-6cb9ec92b50b",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "32": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            14841
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            14841,
+            9.60515,
+            14841,
+            14841,
+            14841,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "d38b73d6-dc5a-4602-9ec4-2c308b4a49fe",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "f1a1d135-c1ce-4144-acd5-d22a61ad84e4",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "06b61c8d-2619-401a-a7dd-4df5af73a3ea",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "de0e0f6f-890c-4729-87a9-1bb4709cf4a8",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "35": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            21950
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            21950,
+            9.9965,
+            21950,
+            21950,
+            21950,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "1d3defd2-f207-47ca-8b7d-293cd3f6a9c1",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "12360b15-374f-4eaa-8c40-f67b5b359d3e",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "81e972e5-9eb1-4432-9c2f-8ef3fbcbefc4",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "48ee8ef3-87db-4f78-9f9f-f009711f6df0",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "37": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            19642
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            19642,
+            9.8854,
+            19642,
+            19642,
+            19642,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "df527dea-463c-4c60-b48b-e8c63b9d476f",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "1491983b-4248-4bde-93be-efff7d61e804",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "3a5e89fe-3bd5-433b-8858-18a0336030c1",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "4b3708a5-651c-489d-a511-dec800b54937",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "36": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            61424
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            61424,
+            11.02556,
+            61424,
+            61424,
+            61424,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "590b3649-a508-488b-9e49-0654fdcccb65",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "b3666e49-25b6-4fd8-947a-8097b2382bbc",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "d865870b-9a41-4392-9c4e-2bc8a77478bf",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "921fc460-9607-481a-adb6-894c547cc6b9",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "40": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            16761
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            16761,
+            9.7268,
+            16761,
+            16761,
+            16761,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "2d18e799-d514-40d7-8d56-7f4ca52fc56c",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "a8e025d3-7db2-43f3-aa9c-50eebab752cc",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "660093ee-cdfa-40a3-88ed-e194358f42bc",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "48923dfb-397c-47bd-afea-6cb9ec92b50b",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "36": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            117367
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            117367,
+            11.67306,
+            117367,
+            117367,
+            117367,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "bef037ad-8587-4941-b0b9-223690b0abd2",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "08fdeefb-bdd7-482d-945f-8da3e98e8d2b",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "06a545d5-abdf-4db6-9c2a-fbd1d9d6a4fa",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "de0e0f6f-890c-4729-87a9-1bb4709cf4a8",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "43": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            15261
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            15261,
+            9.63306,
+            15261,
+            15261,
+            15261,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "dd5770cc-db66-437f-90c7-18d5bc7a8faa",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "4d9e98a6-0b38-47b2-8c70-90d61aea5ab5",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "e305d7cb-431b-4828-afa2-25d2b36fe333",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "229cfd9c-2b70-46d7-bf85-37eb4e185b03",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "35": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            27880
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            27880,
+            10.23566,
+            27880,
+            27880,
+            27880,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "73c573dc-e8d7-4109-8e04-3a15884cda2f",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "76ba58c9-fb41-486c-b3f8-a004819d8457",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "da00582e-c452-4cb0-b2fa-18981c52c917",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "6880ac0d-f549-40af-bc3d-d5649aad2ff8",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "38": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    },
+{
+        "sampleValues": [
+            11628
+        ],
+        "name": "Parse-Background:count",
+        "running": [
+            1,
+            11628,
+            9.3612,
+            11628,
+            11628,
+            11628,
+            0
+        ],
+        "binBoundaries": [
+            1,
+            [
+                1,
+                1000000,
+                50
+            ]
+        ],
+        "diagnostics": {
+            "traceUrls": "cf91fc44-7deb-4684-9129-04eff2172bb0",
+            "owners": "e7b59ca3-defe-481f-8762-23cfb9082a7f",
+            "traceStart": "d2dd9a8b-3a25-4b86-af3b-15565c5df65b",
+            "bugComponents": "f4c116d5-e029-4c67-a0cd-56a78cbe66a4",
+            "benchmarkStart": "d8c1111f-154a-475e-afd8-ea7fa38efe4f",
+            "architectures": "8106fd2d-9362-4bc2-8009-15a0ddf51fc1",
+            "labels": "d7310a55-7966-4b51-9ce1-5a6e45c97bcb",
+            "documentationLinks": "0d2e81cb-2224-4183-a014-4494e8bdbb09",
+            "osVersions": "f7a60aed-7b60-4e03-9759-26b01e3f082b",
+            "stories": "065ff1a6-656d-47b2-89ff-cdd37121fb5c",
+            "benchmarkDescriptions": "508532ff-f3d6-48eb-9288-3f9634837159",
+            "benchmarks": "1d061a27-a02f-40d2-86c4-f774cd3b09c3",
+            "storysetRepeats": "ccaf9355-0adc-4246-a0ed-6dc032ba28b6",
+            "storyTags": "26b90b38-8c34-4f41-8375-08f09670ba5a",
+            "osNames": "d854e87b-473b-49af-ac58-2c8ed2c7aa1c"
+        },
+        "allBins": {
+            "34": [
+                1
+            ]
+        },
+        "summaryOptions": {
+            "std": false,
+            "count": false,
+            "max": false,
+            "sum": false,
+            "min": false
+        },
+        "unit": "count_smallerIsBetter"
+    }
+]

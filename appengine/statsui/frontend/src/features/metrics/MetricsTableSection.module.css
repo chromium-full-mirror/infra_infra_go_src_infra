@@ -1,0 +1,34 @@
+tr.odd {
+  background: var(--table-odd-row-color);
+}
+
+.section .rank {
+  vertical-align: top;
+  padding-right: 0px;
+}
+
+.section .name {
+  vertical-align: top;
+  border-right: 1px solid var(--grey-300);
+}
+
+.section .name .link {
+  padding-left: 4px;
+}
+
+.section .name .linkIcon {
+  font-size: 16px;
+  vertical-align: text-bottom;
+}
+
+.indent .name {
+  padding-left: 32px;
+}
+
+.section td {
+  white-space: nowrap;
+}
+
+.section td.data:last-child {
+  padding-right: 46px;
+}

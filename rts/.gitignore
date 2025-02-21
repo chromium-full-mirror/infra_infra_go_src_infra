@@ -1,0 +1,4 @@
+# .rej and .dur extensions are often used for data directories with rejections
+# and durations respectively, used for RTS evaluation.
+*.rej
+*.dur

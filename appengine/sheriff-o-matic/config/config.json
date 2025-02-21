@@ -1,0 +1,6 @@
+{
+  "ignored_steps": [
+    "Run Clank Test Annotator",
+    "*(experimental)*"
+  ]
+}

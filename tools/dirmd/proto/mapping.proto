@@ -1,0 +1,94 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package chrome.dir_metadata;
+
+option go_package = "go.chromium.org/infra/tools/dirmd/proto;dirmdpb";
+
+import "go.chromium.org/infra/tools/dirmd/proto/dir_metadata.proto";
+
+// Maps from a directory to its metadata.
+message Mapping {
+  // Dirs maps from a directory to its metadata.
+  //
+  // The key is directory name, relative to the root.
+  // The key must use forward slash as directory separator.
+  // The key must be clean: https://pkg.go.dev/path?tab=doc#Clean
+  // Special key "." represents the root directory.
+  //
+  // The root must be known from the context where Mapping is used and is not
+  // part of the this message.
+  map<string, Metadata> dirs = 1;
+
+  // Files maps file paths to its metadata.
+  //
+  // The key is a path to the file, relatives to the root.
+  // The same rules for the key should apply here as defined by dirs, except
+  // that the key should point to a file.
+  //
+  // Unlike dirs, files will not have a guaranteed entry in FULL mapping form
+  // since it is required to have a DIR_METADATA file to define file overrides,
+  // and the file overrides are processed once the DIR_METADATA file is read in.
+  map<string, Metadata> files = 3;
+
+  // Repos contains information about the repositories that Mapping.dirs were
+  // read from. Repos can be used to tell which repository a given directory
+  // came from. Also it contains loaded mixins, referred to by Mapping.mixins.
+  //
+  // The map key is slash-separated path relative to the root repo.
+  // Examples:
+  // - If there is only one repo, then the only key is ".".
+  // - If the root repo is "~/chromium/src" and it contains subrepo
+  //   "~/chromium/src/v8", then Mapping.repos will have keys "." and "v8".
+  //   In this case Mapping.dirs key "foo/bar" will correspond to Repo key ".",
+  //   while "v8/baz" will correspond to Repo key "v8".
+  map<string, Repo> repos = 2;
+}
+
+// Information about the repository that metadata was read from.
+message Repo {
+  // Mixins are metadata files referred to by Metadata.mixins in Mapping.dirs.
+  // The map keys are Metadata.mixins elements, see that field comment.
+  // A valid Mapping contains a Repo.mixins entry for each
+  // Metadata.mixins entry in Mapping.dirs, for directories that reside in
+  // this repo.
+  map<string, Metadata> mixins = 2;
+}
+
+// A known form of the Mapping.
+enum MappingForm {
+  // The mapping represents the metadata files as is.
+  // The metadata messages in Mapping.Dirs does not include inherited or
+  // mixed-in metadata.
+  ORIGINAL = 0;
+
+  // Like ORIGINAL, but each Mapping.Dirs entry includes inherited and mixed-in
+  //  metadata.
+  //
+  // To avoid accidental double importing, Metadata.mixins field is cleared
+  // in the COMPUTED form.
+  COMPUTED = 1;
+
+  // Like COMPUTED, but the mapping contains metadata only for the explicitly
+  // specified directories. For example, if metadata was requested for
+  // directories "foo/bar" and "foo/baz", then the mapping will contain only
+  // them, and not include "foo" or "foo/bar/qux".
+  //
+  // Typically reading a sparse mapping is much faster.
+  SPARSE = 4;
+
+  // Like COMPUTED, but a Mapping.Dirs entry exists even if the directory does
+  // not define its own, directory-specific metadata.
+  // This is the most verbose/redundant form.
+  FULL = 2;
+
+  // Like ORIGINAL, but all the redundant metadata is removed.
+  // For example, it is redundant to specify the same value for the same
+  // metadata attribute in both "a" and "a/b".
+  // It is also redundant to have a Mapping.Dirs entry with empty metadata.
+  // This is the most compact form without a dataloss.
+  REDUCED = 3;
+}

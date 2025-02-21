@@ -1,0 +1,7 @@
+indexes:
+- kind: Commit
+  properties:
+  - name: PositionNumber
+  - name: Repository
+  - name: PositionRef
+  - name: Host

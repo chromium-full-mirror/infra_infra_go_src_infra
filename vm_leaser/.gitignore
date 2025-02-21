@@ -1,0 +1,6 @@
+# Go builds
+cron-service
+vm-leaser-service
+
+# System generated files
+coverage.out

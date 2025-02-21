@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,30 +6,19 @@
 
 package messages
 
-// MasterConfig represents filtering configurtaion for alerts
-// generated about a buildbot master.
-type MasterConfig struct {
-	Categories       []string                 `json:"categories"`
-	TreeNotify       []string                 `json:"tree_notify"`
-	SheriffClasses   []string                 `json:"sheriff_classes"`
-	Builders         map[string]BuilderConfig `json:"builders"`
-	ExcludedBuilders []string                 `json:"excluded_builders"`
-	ExcludedSteps    []string                 `json:"excluded_steps"`
+import (
+	"net/url"
+	"strings"
+)
+
+// BuilderGroupLocation is the location of a builder group.
+// Currently it's just a URL.
+type BuilderGroupLocation struct {
+	url.URL
 }
 
-// BuilderConfig represents filtering configuration for alerts
-// generated about a buildbot builder.
-type BuilderConfig struct {
-	ExcludedSteps     []string `json:"excluded_steps"`
-	ForgivingSteps    []string `json:"forgiving_steps"`
-	ForgivingOptional []string `json:"forgiving_optional"`
-	SheriffClasses    []string `json:"sheriff_classes"`
-	ClosingSteps      []string `json:"closing_steps"`
-	ClosingOptional   []string `json:"closing_optional"`
-}
-
-// TreeMasterConfig is a named group of masters. e.g. chromium, or blink.
-type TreeMasterConfig struct {
-	BuildDB string   `json:"build-db"`
-	Masters []string `json:"masters"`
+// Name is the name of the builder group; chromium, chromium.linux, etc.
+func (m *BuilderGroupLocation) Name() string {
+	parts := strings.Split(m.Path, "/")
+	return parts[len(parts)-1]
 }

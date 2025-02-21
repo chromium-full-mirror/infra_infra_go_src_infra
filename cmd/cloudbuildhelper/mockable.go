@@ -1,0 +1,37 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package main
+
+import (
+	"context"
+	"io"
+
+	"go.chromium.org/infra/cmd/cloudbuildhelper/cloudbuild"
+	"go.chromium.org/infra/cmd/cloudbuildhelper/registry"
+	"go.chromium.org/infra/cmd/cloudbuildhelper/storage"
+)
+
+// Collection of interfaces that mimic external APIs we use to simplify tests.
+//
+// Mocks are implemented in mockable_test.go.
+
+// storageImpl is implemented by *storage.Storage.
+type storageImpl interface {
+	Check(ctx context.Context, name string) (*storage.Object, error)
+	Upload(ctx context.Context, name, digest string, r io.Reader) (*storage.Object, error)
+	UpdateMetadata(ctx context.Context, obj *storage.Object, cb func(m *storage.Metadata) error) error
+}
+
+// builderImpl is implemented by *cloudbuild.Builder.
+type builderImpl interface {
+	Trigger(ctx context.Context, r cloudbuild.Request) (*cloudbuild.Build, string, error)
+	Check(ctx context.Context, bid string) (*cloudbuild.Build, error)
+}
+
+// registryImpl is implemented by *registry.Client.
+type registryImpl interface {
+	GetImage(ctx context.Context, image string) (*registry.Image, error)
+	TagImage(ctx context.Context, img *registry.Image, tag string) error
+}

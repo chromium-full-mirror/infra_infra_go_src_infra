@@ -1,0 +1,46 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Frontend service handles home page, API and redirects. Static files are
+// served by GAE directly (configured in app.yaml).
+package main
+
+import (
+	"net/http"
+
+	"go.chromium.org/luci/appengine/gaemiddleware"
+	"go.chromium.org/luci/common/errors"
+	"go.chromium.org/luci/config/server/cfgmodule"
+	"go.chromium.org/luci/server"
+	"go.chromium.org/luci/server/gaeemulation"
+	"go.chromium.org/luci/server/module"
+	"go.chromium.org/luci/server/router"
+
+	"go.chromium.org/infra/appengine/cr-rev/config"
+)
+
+func main() {
+	cron := router.NewMiddlewareChain(gaemiddleware.RequireCron)
+	modules := []module.Module{
+		cfgmodule.NewModuleFromFlags(),
+		gaeemulation.NewModuleFromFlags(),
+	}
+
+	server.Main(nil, modules, func(srv *server.Server) error {
+		cfg, err := config.Get(srv.Context)
+		if err != nil {
+			panic("Couldn't load configuration file")
+		}
+
+		setupImport(srv.Context, cfg)
+
+		srv.Routes.GET("/internal/cron/import-config", cron, func(c *router.Context) {
+			if err := config.Set(c.Request.Context()); err != nil {
+				errors.Log(c.Request.Context(), err)
+			}
+			c.Writer.WriteHeader(http.StatusOK)
+		})
+		return nil
+	})
+}

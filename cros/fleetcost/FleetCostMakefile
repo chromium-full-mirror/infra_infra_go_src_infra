@@ -1,0 +1,76 @@
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+define LECTURE_USER
+Please explicitly set a default target in a local Makefile (that is not checked in to version control).
+See Makefile.sample for an example.
+endef
+
+# GARBAGE is all the generated files that might be created by this makefile
+GARBAGE := fleetcost fleetcostserver ./cmd/fleetcost/fleetcost ./cmd/fleetcost/fleetcostserver
+GARBAGE := $(GARBAGE) fleetcost-race fleetcostserver-race
+
+# The first target is the default. By default, tell the user to create their own makefile.
+.PHONY: fleet-cost-makefile-default
+fleet-cost-makefile-default: lecture-user
+
+# Tell the user how to create a local makefile
+.PHONY: lecture-user
+lecture-user:
+	$(error $(LECTURE_USER))
+
+# Run the static analysis tools and the tests and build the binaries.
+# This is intended to be an efficient inner loop for a developer.
+#
+# staticcheck is not a standard tool. It is convenient but not required.
+# Use it *first* if the user has it, otherwise use `go vet` and friends.
+#
+# golangci-lint is also not a standard tool.
+.PHONY: binaries
+binaries:
+	if which staticcheck; then staticcheck ./...; else true; fi
+	# TODO(gregorynisbet): golangci-lint is currently too oldand doesn't understand generics.
+	# if which golangci-lint; then golangci-lint run --fix ./...; else true; fi
+	go vet ./...
+	go test -coverprofile=coverage.out -fullpath ./...
+	$(RM) $(GARBAGE)
+	go build ./cmd/fleetcostserver/
+	go build ./cmd/fleetcost/
+
+# build the binaries with race detection enabled.
+# you shouldn't need to do this very often, so don't bother with the static
+# analysis and whatnot
+#
+# Building the binaries with the race detectors enabled takes a long time to build
+# and should only be used to debug issues with goroutine code locally, or if you
+# suspect a data race.
+.PHONY: binaries-race
+binaries-race:
+	$(RM) $(GARBAGE)
+	go build ./cmd/fleetcostserver/
+	go build ./cmd/fleetcost/
+	go build -o=fleetcostserver-race -race ./cmd/fleetcostserver/
+	go build -o=fleetcost-race ./cmd/fleetcost/
+
+# Run integration tests using the local client and local server binaries.
+.PHONY: integration
+integration:
+	./t/integration_tests
+
+# Abbreviation for integration
+.PHONY: int
+int: integration
+
+# Run go generate to rebuild the service definition from the protobufs.
+# Don't make this part of the `binaries` target because updating the generated
+# files is a code change that needs to be reviewed, so it should be opt-in.
+.PHONY: gen
+gen:
+	go generate ./...
+
+# Run runs fleetcostserver and causes it to act as the dev project, this gives
+# you access to the dev datastore instance.
+.PHONY: run-local
+run-local:
+	./fleetcostserver -cloud-project=fleet-cost-dev

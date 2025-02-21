@@ -1,0 +1,56 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package infra.tools.migrator;
+
+option go_package = "go.chromium.org/infra/tools/migrator/internal/migratorpb";
+
+// Config is migrator's own config written as a text proto to default.cfg in
+// the migrator project directory.
+message Config {
+  // Git-related configuration.
+  message Git {
+    // A list of key-value pairs to pass to "git config ..." when initializing
+    // local repos.
+    //
+    // Useful to set e.g. "user.email".
+    map<string, string> config = 1;
+  }
+
+  // Per-project local tweaks.
+  message ProjectTweaks {
+    // Regexps with names of projects these tweaks apply to (ORed together).
+    //
+    // If multiple ProjectTweaks entries match a project, all matching tweaks
+    // are applied (e.g. `reviewers` lists are joined together to get the final
+    // set of reviewers).
+    //
+    // Uses https://golang.org/s/re2syntax syntax. Regexps are implicitly
+    // wrapped into ^(...)$.
+    repeated string projects_re = 1;
+
+    // Emails to send CLs to instead of default OWNERS.
+    repeated string reviewer = 2;
+
+    // Emails to CC CLs to.
+    repeated string cc = 3;
+  }
+
+  // Git-related configuration.
+  Git git = 1;
+
+  // Regexps with names of projects to visit (ORed together).
+  //
+  // Uses https://golang.org/s/re2syntax syntax. Regexps are implicitly wrapped
+  // into ^(...)$.
+  //
+  // Projects that do not match this filter are considered non-existent.
+  // If empty, visit all projects.
+  repeated string projects_re = 2;
+
+  // Per-project local tweaks.
+  repeated ProjectTweaks tweaks = 3;
+}

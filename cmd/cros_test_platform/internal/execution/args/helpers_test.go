@@ -1,0 +1,157 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package args
+
+import (
+	"time"
+
+	"google.golang.org/protobuf/types/known/durationpb"
+
+	buildapi "go.chromium.org/chromiumos/infra/proto/go/chromite/api"
+	"go.chromium.org/chromiumos/infra/proto/go/chromiumos"
+	"go.chromium.org/chromiumos/infra/proto/go/test_platform"
+	"go.chromium.org/chromiumos/infra/proto/go/test_platform/steps"
+)
+
+func basicInvocation() *steps.EnumerationResponse_AutotestInvocation {
+	return &steps.EnumerationResponse_AutotestInvocation{
+		Test: &buildapi.AutotestTest{
+			ExecutionEnvironment: buildapi.AutotestTest_EXECUTION_ENVIRONMENT_CLIENT,
+		},
+	}
+}
+
+func setTestName(inv *steps.EnumerationResponse_AutotestInvocation, name string) {
+	if inv.Test == nil {
+		inv.Test = &buildapi.AutotestTest{}
+	}
+	inv.Test.Name = name
+}
+
+func setExecutionEnvironment(inv *steps.EnumerationResponse_AutotestInvocation, env buildapi.AutotestTest_ExecutionEnvironment) {
+	if inv.Test == nil {
+		inv.Test = &buildapi.AutotestTest{}
+	}
+	inv.Test.ExecutionEnvironment = env
+}
+
+func setTestKeyval(inv *steps.EnumerationResponse_AutotestInvocation, key string, value string) {
+	if inv.ResultKeyvals == nil {
+		inv.ResultKeyvals = make(map[string]string)
+	}
+	inv.ResultKeyvals[key] = value
+}
+
+func setTestArgs(inv *steps.EnumerationResponse_AutotestInvocation, testArgs string) {
+	inv.TestArgs = testArgs
+}
+
+func setParamsTestArgs(p *test_platform.Request_Params, key string, value string) {
+	if p.Decorations == nil {
+		p.Decorations = &test_platform.Request_Params_Decorations{}
+	}
+	if p.Decorations.TestArgs == nil {
+		p.Decorations.TestArgs = make(map[string]string)
+	}
+	p.Decorations.TestArgs[key] = value
+}
+
+func setDisplayName(inv *steps.EnumerationResponse_AutotestInvocation, name string) {
+	inv.DisplayName = name
+}
+
+func setBuild(p *test_platform.Request_Params, build string) {
+	p.SoftwareDependencies = append(p.SoftwareDependencies,
+		&test_platform.Request_Params_SoftwareDependency{
+			Dep: &test_platform.Request_Params_SoftwareDependency_ChromeosBuild{
+				ChromeosBuild: build,
+			},
+		})
+}
+
+func setRequestKeyval(p *test_platform.Request_Params, key string, value string) {
+	if p.Decorations == nil {
+		p.Decorations = &test_platform.Request_Params_Decorations{}
+	}
+	if p.Decorations.AutotestKeyvals == nil {
+		p.Decorations.AutotestKeyvals = make(map[string]string)
+	}
+	p.Decorations.AutotestKeyvals[key] = value
+}
+
+func setRequestMaximumDuration(p *test_platform.Request_Params, maximumDuration time.Duration) {
+	if p.Time == nil {
+		p.Time = &test_platform.Request_Params_Time{}
+	}
+	p.Time.MaximumDuration = durationpb.New(maximumDuration)
+}
+
+func setPrimayDeviceBoard(p *test_platform.Request_Params, board string) {
+	if p.SoftwareAttributes == nil {
+		p.SoftwareAttributes = &test_platform.Request_Params_SoftwareAttributes{
+			BuildTarget: &chromiumos.BuildTarget{Name: board},
+		}
+	} else {
+		p.SoftwareAttributes.BuildTarget.Name = board
+	}
+}
+
+func setPrimayDeviceModel(p *test_platform.Request_Params, model string) {
+	if p.HardwareAttributes == nil {
+		p.HardwareAttributes = &test_platform.Request_Params_HardwareAttributes{
+			Model: model,
+		}
+	} else {
+		p.HardwareAttributes.Model = model
+	}
+}
+
+func setSecondaryDevice(p *test_platform.Request_Params, board, model, cros_build string) {
+	device := &test_platform.Request_Params_SecondaryDevice{}
+	device.SoftwareAttributes = &test_platform.Request_Params_SoftwareAttributes{BuildTarget: &chromiumos.BuildTarget{Name: board}}
+	if model != "" {
+		device.HardwareAttributes = &test_platform.Request_Params_HardwareAttributes{Model: model}
+	}
+	if cros_build != "" {
+		device.SoftwareDependencies = append(
+			device.SoftwareDependencies, &test_platform.Request_Params_SoftwareDependency{
+				Dep: &test_platform.Request_Params_SoftwareDependency_ChromeosBuild{ChromeosBuild: cros_build},
+			},
+		)
+	}
+	p.SecondaryDevices = append(p.SecondaryDevices, device)
+}
+
+func setAndroidSecondaryDeviceWithAndroidProvisionMetadata(p *test_platform.Request_Params, board, model, androidImageVersion string, gmsCorePackage string) {
+	device := &test_platform.Request_Params_SecondaryDevice{}
+	device.SoftwareAttributes = &test_platform.Request_Params_SoftwareAttributes{BuildTarget: &chromiumos.BuildTarget{Name: board}}
+	if model != "" {
+		device.HardwareAttributes = &test_platform.Request_Params_HardwareAttributes{Model: model}
+	}
+	if androidImageVersion != "" {
+		device.SoftwareDependencies = append(
+			device.SoftwareDependencies, &test_platform.Request_Params_SoftwareDependency{
+				Dep: &test_platform.Request_Params_SoftwareDependency_AndroidImageVersion{AndroidImageVersion: androidImageVersion},
+			},
+		)
+		device.SoftwareDependencies = append(
+			device.SoftwareDependencies, &test_platform.Request_Params_SoftwareDependency{
+				Dep: &test_platform.Request_Params_SoftwareDependency_GmsCorePackage{GmsCorePackage: gmsCorePackage},
+			},
+		)
+	}
+	p.SecondaryDevices = append(p.SecondaryDevices, device)
+}
+
+func setRunViaCft(p *test_platform.Request_Params, run_via_cft bool) {
+	p.RunViaCft = run_via_cft
+}
+
+func setTestUploadVisibility(p *test_platform.Request_Params, mode test_platform.Request_Params_ResultsUploadConfig_TestResultsUploadVisibility) {
+	if p.Results == nil {
+		p.Results = &test_platform.Request_Params_ResultsUploadConfig{}
+	}
+	p.Results.Mode = mode
+}

@@ -1,0 +1,41 @@
+# Copyright 2014 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# To check locally (couldn't fetch from cloud storage because
+# dev_appserver doesn't support service account)
+#  $ gae.py depserver
+#
+# To deploy
+#  $ gcloud --project=$project app deploy app.yaml
+#
+runtime: go123
+app_engine_apis: true
+
+instance_class: F4_1G
+
+handlers:
+- url: /(.+\.ico)
+  static_files: static/\1
+  mime_type: image/x-icon
+  upload: static/(.+\.ico)
+
+- url: /(robots\.txt)
+  static_files: static/\1
+  mime_type: text/plain
+  upload: static/(robots\.txt)
+
+- url: /file.*
+  script: auto
+  login: required
+  secure: always
+- url: /ninja_log.*
+  script: auto
+  secure: always
+- url: /_ah/push-handlers/.*
+  script: auto
+  login: admin
+  secure: always
+- url: /.*
+  script: auto
+  secure: always

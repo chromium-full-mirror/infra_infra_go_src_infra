@@ -1,0 +1,43 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package main;
+
+option go_package = "go.chromium.org/infra/tools/pkgbuild/cmd/edge;main";
+
+// Proto message which reflects the input properties fora the pkgbuild recipe.
+// See more detailed description for each field there.
+message Input {
+  // Target CIPD platform for packages.
+  string target_platform = 2;
+
+  // Storage directory for build and cache packages.
+  string storage_dir = 3;
+  // Spec pool directory for finding 3pp specs.
+  string spec_pool = 4;
+
+  // If true, packages will check new versions. Otherwise source lock will be
+  // used. If the package is without both update and source lock, build will
+  // failed.
+  bool update = 10;
+  // If true, packages will be built.
+  bool build = 11;
+  // If true, upload packages to CIPD service.
+  bool upload = 6;
+
+  // If true, source lock file under the package spec directory will be updated.
+  bool update_source_lock = 9;
+  // List of source platforms to be updated.
+  repeated string update_source_platforms = 12;
+
+  // CIPD service URL for downloading and uploading packages.
+  string cipd_service = 5;
+  // The prefix to use for uploading built packages.
+  string cipd_package_prefix = 7;
+
+  // Snoopy service URL for reporting artifact hash.
+  string snoopy_service = 8;
+}

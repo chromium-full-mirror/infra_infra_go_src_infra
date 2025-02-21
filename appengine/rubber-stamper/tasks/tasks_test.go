@@ -1,0 +1,265 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package tasks
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/golang/mock/gomock"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"go.chromium.org/luci/common/proto"
+	gerritpb "go.chromium.org/luci/common/proto/gerrit"
+	"go.chromium.org/luci/common/testing/ftt"
+	"go.chromium.org/luci/common/testing/truth/assert"
+	"go.chromium.org/luci/common/testing/truth/should"
+	"go.chromium.org/luci/gae/impl/memory"
+	"go.chromium.org/luci/server/tq/tqtesting"
+
+	"go.chromium.org/infra/appengine/rubber-stamper/config"
+	"go.chromium.org/infra/appengine/rubber-stamper/internal/util"
+	"go.chromium.org/infra/appengine/rubber-stamper/tasks/taskspb"
+)
+
+func TestQueue(t *testing.T) {
+	ftt.Run("Chain works", t, func(t *ftt.Test) {
+		cfg := &config.Config{
+			DefaultTimeWindow: "7d",
+			HostConfigs: map[string]*config.HostConfig{
+				"host": {
+					RepoConfigs: map[string]*config.RepoConfig{
+						"dummy": {
+							BenignFilePattern: &config.BenignFilePattern{
+								Paths: []string{"a/b.txt"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := memory.Use(context.Background())
+		ctx, gerritMock, sched := util.SetupTestingContext(ctx, cfg, "srv-account@example.com", "host", t)
+
+		var succeeded tqtesting.TaskList
+
+		sched.TaskSucceeded = tqtesting.TasksCollector(&succeeded)
+		sched.TaskFailed = func(ctx context.Context, task *tqtesting.Task) { panic("should not fail") }
+
+		t.Run("Test deduplication", func(t *ftt.Test) {
+			const host = "host"
+			createdTime := timestamppb.New(time.Now().Add(-5 * time.Minute))
+			cls := []*gerritpb.ChangeInfo{
+				{
+					Number:          12345,
+					CurrentRevision: "123abc",
+					Project:         "dummy",
+					Created:         createdTime,
+					Labels: map[string]*gerritpb.LabelInfo{
+						"Auto-Submit": {Approved: &gerritpb.AccountInfo{}},
+					},
+					Revisions: map[string]*gerritpb.RevisionInfo{
+						"123abc": {},
+					},
+					Owner: &gerritpb.AccountInfo{
+						Email: "user@example.com",
+					},
+					Hashtags: []string{"Tag"},
+				},
+				{
+					Number:          12345,
+					CurrentRevision: "456789",
+					Project:         "dummy",
+					Created:         createdTime,
+					Revisions: map[string]*gerritpb.RevisionInfo{
+						"123abc": {},
+					},
+					Owner: &gerritpb.AccountInfo{
+						Email: "user@example.com",
+					},
+					Hashtags: []string{"Tag"},
+				},
+				{
+					Number:          12315,
+					CurrentRevision: "112233",
+					Project:         "dummy",
+					Created:         createdTime,
+					RevertOf:        129380,
+					Revisions: map[string]*gerritpb.RevisionInfo{
+						"112233": {},
+						"456123": {},
+					},
+					Owner: &gerritpb.AccountInfo{
+						Email: "user@example.com",
+					},
+					Hashtags: []string{"Tag"},
+				},
+				{
+					Number:             12387,
+					CurrentRevision:    "111aaa",
+					Project:            "dummy",
+					Created:            createdTime,
+					CherryPickOfChange: 129380,
+					Revisions: map[string]*gerritpb.RevisionInfo{
+						"111aaa": {},
+					},
+					Owner: &gerritpb.AccountInfo{
+						Email: "user@example.com",
+					},
+					Hashtags: []string{"Tag"},
+				},
+			}
+
+			// cls[0]: benign file change with Auto-Submit
+			gerritMock.EXPECT().ListFiles(gomock.Any(), proto.MatcherEqual(&gerritpb.ListFilesRequest{
+				Number:     cls[0].Number,
+				RevisionId: cls[0].CurrentRevision,
+			})).Return(&gerritpb.ListFilesResponse{
+				Files: map[string]*gerritpb.FileInfo{
+					"a/b.txt": nil,
+				},
+			}, nil)
+			gerritMock.EXPECT().SetReview(gomock.Any(), proto.MatcherEqual(&gerritpb.SetReviewRequest{
+				Number:     cls[0].Number,
+				RevisionId: cls[0].CurrentRevision,
+				Labels:     map[string]int32{"Bot-Commit": 1, "Commit-Queue": 2},
+			})).Return(&gerritpb.ReviewResult{}, nil)
+
+			// cls[1]: benign file change
+			gerritMock.EXPECT().ListFiles(gomock.Any(), proto.MatcherEqual(&gerritpb.ListFilesRequest{
+				Number:     cls[1].Number,
+				RevisionId: cls[1].CurrentRevision,
+			})).Return(&gerritpb.ListFilesResponse{
+				Files: map[string]*gerritpb.FileInfo{
+					"a/b.txt": nil,
+				},
+			}, nil)
+			gerritMock.EXPECT().SetReview(gomock.Any(), proto.MatcherEqual(&gerritpb.SetReviewRequest{
+				Number:     cls[1].Number,
+				RevisionId: cls[1].CurrentRevision,
+				Labels:     map[string]int32{"Bot-Commit": 1},
+			})).Return(&gerritpb.ReviewResult{}, nil)
+
+			// cls[2]: clean revert
+			gerritMock.EXPECT().GetPureRevert(gomock.Any(), proto.MatcherEqual(&gerritpb.GetPureRevertRequest{
+				Number:  cls[2].Number,
+				Project: cls[2].Project,
+			})).Return(&gerritpb.PureRevertInfo{
+				IsPureRevert: true,
+			}, nil)
+			gerritMock.EXPECT().GetChange(gomock.Any(), proto.MatcherEqual(&gerritpb.GetChangeRequest{
+				Number:  cls[2].RevertOf,
+				Options: []gerritpb.QueryOption{gerritpb.QueryOption_CURRENT_REVISION},
+			})).Return(&gerritpb.ChangeInfo{
+				CurrentRevision: "aa1def",
+				Revisions: map[string]*gerritpb.RevisionInfo{
+					"aa1def": {
+						Created: timestamppb.New(time.Now().Add(-7 * time.Minute)),
+					},
+				},
+			}, nil)
+			gerritMock.EXPECT().SetReview(gomock.Any(), proto.MatcherEqual(&gerritpb.SetReviewRequest{
+				Number:     cls[2].Number,
+				RevisionId: cls[2].CurrentRevision,
+				Labels:     map[string]int32{"Bot-Commit": 1},
+			})).Return(&gerritpb.ReviewResult{}, nil)
+
+			// cls[3]: clean cherry-pick
+			gerritMock.EXPECT().GetChange(gomock.Any(), proto.MatcherEqual(&gerritpb.GetChangeRequest{
+				Number:  cls[3].CherryPickOfChange,
+				Options: []gerritpb.QueryOption{gerritpb.QueryOption_CURRENT_REVISION},
+			})).Return(&gerritpb.ChangeInfo{
+				Status:          gerritpb.ChangeStatus_MERGED,
+				CurrentRevision: "456def",
+				Revisions: map[string]*gerritpb.RevisionInfo{
+					"456def": {
+						Created: timestamppb.New(time.Now().Add(-10 * time.Minute)),
+					},
+				},
+			}, nil)
+			gerritMock.EXPECT().GetMergeable(gomock.Any(), proto.MatcherEqual(&gerritpb.GetMergeableRequest{
+				Number:     cls[3].Number,
+				Project:    cls[3].Project,
+				RevisionId: cls[3].CurrentRevision,
+			})).Return(&gerritpb.MergeableInfo{
+				Mergeable: true,
+			}, nil)
+			gerritMock.EXPECT().SetReview(gomock.Any(), proto.MatcherEqual(&gerritpb.SetReviewRequest{
+				Number:     cls[3].Number,
+				RevisionId: cls[3].CurrentRevision,
+				Labels:     map[string]int32{"Bot-Commit": 1},
+			})).Return(&gerritpb.ReviewResult{}, nil)
+
+			// After enqueuing, run the tasks immediately to make sure they end
+			// executing by order, otherwise the test could be flaky.
+			assert.Loosely(t, EnqueueChangeReviewTask(ctx, host, cls[0]), should.BeNil)
+			assert.Loosely(t, EnqueueChangeReviewTask(ctx, host, cls[0]), should.BeNil)
+			sched.Run(ctx, tqtesting.StopWhenDrained())
+
+			assert.Loosely(t, EnqueueChangeReviewTask(ctx, host, cls[1]), should.BeNil)
+			assert.Loosely(t, EnqueueChangeReviewTask(ctx, host, cls[1]), should.BeNil)
+			sched.Run(ctx, tqtesting.StopWhenDrained())
+
+			assert.Loosely(t, EnqueueChangeReviewTask(ctx, host, cls[2]), should.BeNil)
+			sched.Run(ctx, tqtesting.StopWhenDrained())
+
+			assert.Loosely(t, EnqueueChangeReviewTask(ctx, host, cls[3]), should.BeNil)
+			sched.Run(ctx, tqtesting.StopWhenDrained())
+
+			assert.Loosely(t, len(succeeded.Payloads()), should.Equal(4))
+			assert.Loosely(t, succeeded.Payloads(), should.Resemble([]protoreflect.ProtoMessage{
+				&taskspb.ChangeReviewTask{
+					Host:           "host",
+					Number:         12345,
+					Revision:       "123abc",
+					Repo:           "dummy",
+					AutoSubmit:     true,
+					RevisionsCount: 1,
+					Created:        createdTime,
+					Hashtags:       []string{"Tag"},
+					OwnerEmail:     "user@example.com",
+				},
+				&taskspb.ChangeReviewTask{
+					Host:           "host",
+					Number:         12345,
+					Revision:       "456789",
+					Repo:           "dummy",
+					AutoSubmit:     false,
+					RevisionsCount: 1,
+					Created:        createdTime,
+					Hashtags:       []string{"Tag"},
+					OwnerEmail:     "user@example.com",
+				},
+				&taskspb.ChangeReviewTask{
+					Host:           "host",
+					Number:         12315,
+					Revision:       "112233",
+					Repo:           "dummy",
+					AutoSubmit:     false,
+					RevertOf:       129380,
+					RevisionsCount: 2,
+					Created:        createdTime,
+					Hashtags:       []string{"Tag"},
+					OwnerEmail:     "user@example.com",
+				},
+				&taskspb.ChangeReviewTask{
+					Host:               "host",
+					Number:             12387,
+					Revision:           "111aaa",
+					Repo:               "dummy",
+					AutoSubmit:         false,
+					CherryPickOfChange: 129380,
+					RevisionsCount:     1,
+					Created:            createdTime,
+					Hashtags:           []string{"Tag"},
+					OwnerEmail:         "user@example.com",
+				},
+			}))
+		})
+	})
+}

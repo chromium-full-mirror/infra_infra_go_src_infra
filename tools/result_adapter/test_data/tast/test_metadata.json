@@ -1,0 +1,104 @@
+{
+    "values": [
+        {
+            "testCase": {
+                "id": {
+                    "value": "tast.lacros.Basic"
+                },
+                "name": "lacros.Basic",
+                "tags": [
+                    {
+                        "value": "group:mainline"
+                    },
+                    {
+                        "value": "wificell-qa"
+                    }
+                ]
+            },
+            "testCaseExec": {
+                "testHarness": {
+                    "tast": {}
+                }
+            },
+            "testCaseInfo": {
+                "owners": [
+                    {
+                        "email": "owner1@test.com"
+                    },
+                    {
+                        "email": "owner2@test.com"
+                    }
+                ],
+                "bugComponent": {
+                    "value": "b:1234"
+                },
+                "criteria": {
+                    "value": ""
+                },
+                "lifeCycleStage": {
+                    "value": "LIFE_CYCLE_OWNER_MONITORED"
+                },
+                "variantCategory": {}
+            }
+        },
+        {
+            "testCase": {
+                "id": {
+                    "value": "tast.lacros.Migrate"
+                },
+                "name": "lacros.Migrate"
+            },
+            "testCaseExec": {
+                "testHarness": {
+                    "tast": {}
+                }
+            },
+            "testCaseInfo": {
+                "bugComponent": {
+                    "value": "crbug:OS>LaCrOS"
+                },
+                "criteria": {
+                    "value": "A very looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong criteria"
+                },
+                "requirements": [
+                    {
+                        "value": "requirement 1 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 2 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 3 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 4 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 5 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 6 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 7 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 8 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 9 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 10 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 11 in a very long list of requirements"
+                    },
+                    {
+                        "value": "requirement 12 in a very long list of requirements"
+                    }
+                ]
+            }
+        }
+    ]
+}

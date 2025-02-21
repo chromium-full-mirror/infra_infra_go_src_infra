@@ -1,0 +1,82 @@
+// Copyright 2019 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Command common-tls implements the shared high level test lab services (TLS) API.
+// This depends on a separate implementation of the low level TLS wiring API.
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"log"
+	"net"
+	"os"
+	"time"
+
+	"google.golang.org/grpc"
+
+	"go.chromium.org/infra/cros/tlslib"
+)
+
+var (
+	port          = flag.Int("port", 0, "Port to listen to")
+	wiringPort    = flag.Int("wiring-port", 0, "Port for the TLS wiring service")
+	sshKey        = flag.String("ssh-key", "", "[Deprecated. Will use the well known RSA key, use 'dut-ssh-key' if an alternate key is needed.] Path to SSH key for DUTs (no auth if unset)")
+	serverTimeout = flag.Duration("server-timeout", 0, "Maximum duration for which to allow the server to run (<=0 to run indefinitely)")
+	// This key will be used together to access DUTs with the default SSH key stored in wellknown_ssh_key.go:
+	// 	 https://chromium.git.corp.google.com/infra/infra//+/refs/heads/main/go/src/infra/cros/tlslib/wellknown_ssh_key.go
+	dutSSHKey = flag.String("dut-ssh-key", "", "Path to alternate SSH key for DUT. This key will be used if the default well-known key doesn't work")
+)
+
+func main() {
+	if err := innerMain(); err != nil {
+		log.Fatalf("common-tls: %s", err)
+	}
+}
+
+func innerMain() error {
+	flag.Parse()
+	// We need to make sure that something eventually terminates this program,
+	// since it cannot be guaranteed that the test_runner builder will send the
+	// requisite process signal.
+	go func() {
+		if serverTimeout.Nanoseconds() <= 0 {
+			return
+		}
+		programTimeout := *serverTimeout + time.Minute
+		time.Sleep(programTimeout)
+		log.Printf("Not-so-gracefully stopping the program due to its %v program timeout", programTimeout)
+		os.Exit(1)
+	}()
+
+	// TODO(ayatane): Handle if the wiring service connection drops.
+	conn, err := grpc.Dial(fmt.Sprintf("0.0.0.0:%d", *wiringPort), grpc.WithInsecure())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
+	if err != nil {
+		return err
+	}
+	log.Printf("CommonServer listening at address %v", l.Addr())
+	s, err := tlslib.NewServer(context.Background(), conn, tlslib.DUTSSHKeyOption(*dutSSHKey))
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		if serverTimeout.Nanoseconds() <= 0 {
+			return
+		}
+		time.Sleep(*serverTimeout)
+		log.Printf("Gracefully stopping the server due to timeout being hit")
+		s.GracefulStop()
+	}()
+	if err := s.Serve(l); err != nil {
+		return err
+	}
+	return nil
+}

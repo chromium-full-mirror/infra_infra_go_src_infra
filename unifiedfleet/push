@@ -1,0 +1,148 @@
+#!/bin/bash -e
+# A helper script to guide UFS push to prod.
+
+# Create the uprev CL.
+WORKDIR=$(mktemp -d /tmp/ufs-push.XXXXXX)
+pushd "$WORKDIR" >/dev/null || (
+	echo "Failed to enter created temp working dir $WORKDIR. Exiting."
+	exit
+)
+
+# The clone command is copied from
+# https://chrome-internal-review.googlesource.com/admin/repos/infradata/k8s,general
+# Please keep sync with it (though it should be stable).
+# The only change here is to use shallow clone for speed.
+# {
+(
+	git clone --depth 1 https://chrome-internal.googlesource.com/infradata/k8s && (
+		cd k8s && f=$(git rev-parse --git-dir)/hooks/commit-msg
+		mkdir -p $(dirname $f)
+		curl -Lo $f https://gerrit-review.googlesource.com/tools/hooks/commit-msg
+		chmod +x $f
+	)
+) &>/dev/null
+# }
+cd k8s || (
+	echo "Failed to enter clones repository. Exiting."
+	exit 1
+)
+VERSION_FILE=projects/unified-fleet-system/channels.json
+DUMPER_NEW_IMAGE_TAG=$(cat $VERSION_FILE | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/dumper"]["staging"])')
+DUMPER_OLD_IMAGE_TAG=$(cat $VERSION_FILE | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/dumper"]["stable"])')
+SERVICE_NEW_IMAGE_TAG=$(cat $VERSION_FILE | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/ufs-service"]["staging"])')
+SERVICE_OLD_IMAGE_TAG=$(cat $VERSION_FILE | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/ufs-service"]["stable"])')
+
+NEW_VERSION_FILE=$(cat $VERSION_FILE | python3 -c 'import json,sys;obj=json.load(sys.stdin);\
+        dumper_nit = '\"$DUMPER_NEW_IMAGE_TAG\"';\
+        service_nit = '\"$SERVICE_NEW_IMAGE_TAG\"';\
+        obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/dumper"]["canary"] = dumper_nit;\
+        obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/dumper"]["stable"] = dumper_nit;\
+        obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/ufs-service"]["canary"] = service_nit;\
+        obj["images"]["gcr.io/chops-public-images-prod/unified-fleet-system/ufs-service"]["stable"] = service_nit;\
+        print(json.dumps(obj, indent=2));')
+
+echo "$NEW_VERSION_FILE" > $VERSION_FILE
+
+# Get the changelog from the ufs dir
+popd >/dev/null || (
+	echo "Failed to exit from the temp working dir $WORKDIR. Exiting."
+	exit 1
+)
+
+# Generate the announce email.
+DUMPER_OLD_GIT=${DUMPER_OLD_IMAGE_TAG##*-}
+DUMPER_NEW_GIT=${DUMPER_NEW_IMAGE_TAG##*-}
+SERVICE_OLD_GIT=${SERVICE_OLD_IMAGE_TAG##*-}
+SERVICE_NEW_GIT=${SERVICE_NEW_IMAGE_TAG##*-}
+
+VER_CHANGE="$DUMPER_OLD_GIT..$DUMPER_NEW_GIT"
+if [[ "$DUMPER_OLD_GIT" != "$SERVICE_OLD_GIT" ]]
+then
+        VER_CHANGE="dumper: $DUMPER_OLD_GIT..$DUMPER_NEW_GIT ufs-service: $SERVICE_OLD_GIT..$SERVICE_NEW_GIT"
+fi
+
+# Determine the oldest commit between dumper and service
+OLD_COMMIT_LOG=$(git log refs/remotes/origin/main --oneline "$SERVICE_OLD_GIT".."$DUMPER_OLD_GIT" -- .)
+OLD_COMMIT=$DUMPER_OLD_GIT
+if [[ ${#OLD_COMMIT_LOG} -gt 0 ]]
+then
+        OLD_COMMIT=$SERVICE_OLD_GIT
+fi
+
+# Determine the newest commit between dumper and service
+NEW_COMMIT_LOG=$(git log refs/remotes/origin/main --oneline "$SERVICE_NEW_GIT".."$DUMPER_NEW_GIT" -- .)
+NEW_COMMIT=$SERVICE_NEW_GIT
+if [[ ${#NEW_COMMIT_LOG} -gt 0 ]]
+then
+        NEW_COMMIT=$DUMPER_NEW_GIT
+fi
+
+# Get the changelog content
+CONTENT=$(git log refs/remotes/origin/main --oneline "$OLD_COMMIT".."$NEW_COMMIT" -- .)
+
+# Change back to workdir to create the CL
+pushd "$WORKDIR" >/dev/null || (
+	echo "Failed to enter created temp working dir $WORKDIR. Exiting."
+	exit
+)
+cd k8s || (
+	echo "Failed to enter clones repository. Exiting."
+	exit 1
+)
+
+./main.star
+git commit -a -F - <<EOF
+UFS: push to prod
+
+dumper => $DUMPER_OLD_IMAGE_TAG to $DUMPER_NEW_IMAGE_TAG
+ufs-service => $SERVICE_OLD_IMAGE_TAG to $SERVICE_NEW_IMAGE_TAG
+
+Changelog:
+$CONTENT
+
+BUG=None
+TEST=./main.star
+EOF
+
+cat - | more <<EOF
+== The UFS push CL:
+
+$(git log -1 -p)
+
+EOF
+
+echo "== Does this look good? [y/n]"
+read -r CONFIRM
+
+if [[ $CONFIRM != "y" ]]; then
+	echo "Aborting the CL and push"
+	exit 1
+fi
+
+git cl upload --no-squash
+
+popd >/dev/null || (
+	echo "Failed to exit from the temp working dir $WORKDIR. Exiting."
+	exit 1
+)
+
+
+git fetch origin main &>/dev/null
+cat - <<EOF
+
+== Please ask the team to +2 the CL just uploaded above.
+== Then follow go/ufs-p2p for the remaining steps.
+== Finally, don't forget sending out below email to announce.
+
+== To:
+ufs-announce@google.com
+
+== Title:
+UFS push ($VER_CHANGE)
+
+== Content:
+
+$CONTENT
+
+EOF
+rm -rf "$WORKDIR"

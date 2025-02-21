@@ -1,0 +1,151 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/google/subcommands"
+	"github.com/pkg/errors"
+
+	"go.chromium.org/infra/cros/cmd/lucifer/internal/api"
+	"go.chromium.org/infra/cros/cmd/lucifer/internal/autotest"
+	"go.chromium.org/infra/cros/cmd/lucifer/internal/dutstate"
+	"go.chromium.org/infra/cros/cmd/lucifer/internal/event"
+	"go.chromium.org/infra/cros/cmd/lucifer/internal/flagx"
+	"go.chromium.org/infra/cros/cmd/lucifer/internal/osutil"
+)
+
+type auditTaskCmd struct {
+	commonOpts
+	name    string
+	host    string
+	actions []string
+}
+
+func (auditTaskCmd) Name() string {
+	return "audittask"
+}
+
+func (auditTaskCmd) Synopsis() string {
+	return "Run an audit task"
+}
+
+func (auditTaskCmd) Usage() string {
+	return `audittask [FLAGS]
+
+lucifer audittask runs actions to audit a host.
+Updating the status of a running job is delegated to the calling
+process.  Status update events are printed to stdout, and the calling
+process should perform the necessary updates.
+`
+}
+
+func (c *auditTaskCmd) SetFlags(f *flag.FlagSet) {
+	c.commonOpts.Register(f)
+	f.StringVar(&c.host, "host", "", "Host on which to run audit task")
+	f.Var(flagx.CommaList(&c.actions), "actions", "Host actions to execute.")
+}
+
+func (c *auditTaskCmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+	if err := c.innerExecute(ctx, f, args...); err != nil {
+		fmt.Fprintf(os.Stderr, "lucifer: %s\n", err)
+		switch err := err.(type) {
+		case exitError:
+			return err.ExitStatus()
+		default:
+			return subcommands.ExitFailure
+		}
+	}
+	return subcommands.ExitSuccess
+}
+
+func (c *auditTaskCmd) innerExecute(ctx context.Context, f *flag.FlagSet, _ ...interface{}) error {
+	if err := c.validateFlags(); err != nil {
+		return err
+	}
+	ctx, res, err := commonSetup(ctx, c.commonOpts)
+	if err != nil {
+		return err
+	}
+	defer res.Close()
+
+	ac := res.apiClient()
+	var errors []error
+	var dutState event.Event
+	for _, a := range c.actions {
+		ds, err := c.runAction(ctx, ac, a)
+		if err != nil {
+			// Allows to run all actions and collect errors.
+			errors = append(errors, err)
+		}
+		if ds != "" {
+			dutState = ds
+		}
+	}
+	if len(errors) > 0 && dutState == "" {
+		dutState = event.HostNeedsRepair
+	}
+	if dutState != "" {
+		sendHostStatus(ctx, ac, []string{c.host}, dutState)
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("errors %s", errors)
+	}
+	return nil
+}
+
+func (c *auditTaskCmd) runAction(ctx context.Context, ac *api.Client, a string) (ds event.Event, err error) {
+	s := ac.Logger().Step(a)
+	defer s.Close()
+
+	resultsDir := filepath.Join(c.resultsDir, a)
+	if err := os.MkdirAll(resultsDir, 0777); err != nil {
+		s.Printf("Run action %s: %s", a, err)
+		s.Exception()
+		return ds, errors.Errorf("audit run action %s: %s", a, err)
+	}
+
+	args := autotest.AuditTaskArgs{
+		Hostname:     c.host,
+		ResultsDir:   resultsDir,
+		HostInfoFile: c.hostInfoStorePath(c.host),
+		Actions:      []string{a},
+	}
+	cmd := autotest.AuditTaskCommand(c.autotestConfig(), &args)
+	cmd.Stdout = ac.Logger().RawWriter()
+	cmd.Stderr = ac.Logger().RawWriter()
+
+	err = wrapRunError(osutil.RunWithAbort(ctx, cmd))
+	// The dut_state file can be created during executing of the action.
+	ds = dutstate.ReadFile(resultsDir)
+	if err != nil {
+		s.Printf("Error running %#v command: %s", a, err)
+		s.Exception()
+		return ds, errors.Errorf("audit run action %s: %s", a, err)
+	}
+	return ds, nil
+}
+
+func (c *auditTaskCmd) validateFlags() error {
+	var errs []error
+	if c.abortSock == "" {
+		errs = append(errs, errors.New("-abortsock must be provided"))
+	}
+	if c.host == "" {
+		errs = append(errs, errors.New("-host must be provided"))
+	}
+	if c.resultsDir == "" {
+		errs = append(errs, errors.New("-resultsdir must be provided"))
+	}
+	if len(errs) > 0 {
+		return usageError{fmt.Errorf("Errors occurred during argument parsing: %s", errs)}
+	}
+	return nil
+}

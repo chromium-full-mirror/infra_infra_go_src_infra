@@ -1,0 +1,73 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package fleetcost.api.models;
+
+option go_package = "go.chromium.org/infra/cros/fleetcost/api/models;fleetcostpb";
+
+import "google/type/money.proto";
+
+// Each Indicator refers to cost from a particular item, e.g. DUT, servo, servers, operation, space.
+enum IndicatorType {
+    INDICATOR_TYPE_UNKNOWN = 0;
+    INDICATOR_TYPE_DUT = 1;
+    INDICATOR_TYPE_SERVO = 2;
+    INDICATOR_TYPE_USBHUB = 3;
+    INDICATOR_TYPE_SERVER = 4;
+    INDICATOR_TYPE_USB_DRIVE = 5;
+    INDICATOR_TYPE_LABSTATION = 6;
+    INDICATOR_TYPE_SPACE = 7;
+    INDICATOR_TYPE_OPERATION = 8;
+    INDICATOR_TYPE_CLOUD = 9;
+    INDICATOR_TYPE_POWER = 10;
+    // TESTBED is the total cost of a per-device testbed, for example in a connectivity pool.
+    INDICATOR_TYPE_TESTBED = 11;
+}
+
+// Location indicates location scope for costs that may vary in different sites.
+enum Location {
+    LOCATION_UNKNOWN = 0;
+    LOCATION_ALL = 1;
+    LOCATION_SFO36 = 2;
+    LOCATION_IAD65 = 3;
+    LOCATION_ACS = 4;
+}
+
+enum CostCadence {
+    COST_CADENCE_UNKNOWN = 0;
+    COST_CADENCE_ONE_TIME = 1;
+    COST_CADENCE_ANNUALLY = 2;
+    COST_CADENCE_MONTHLY = 3;
+    COST_CADENCE_DAILY = 4;
+    COST_CADENCE_HOURLY = 5;
+}
+
+// Any combination of type/primary/secondary/tertiary/location will be unique.
+message CostIndicator {
+    reserved 3, 4, 5;
+    reserved "board", "model", "sku";
+    string name = 1;
+    IndicatorType type = 2;
+    string primary = 13;
+    string secondary = 14;
+    string tertiary = 15;
+    google.type.Money cost = 6;
+    // How frequently will the cost occur.
+    CostCadence cost_cadence = 7;
+    // Annual burnout rate, e.g. 0.1 meaning 10% of devices need to be replaced per
+    // year, note this should apply to the cost associated with one time cadence.
+    double burnout_rate = 8;
+    Location location = 9;
+    string description = 10;
+    reserved "quantity";
+    reserved 11;
+    // Amortization is the time in years that we amortize COST_CADENCE_ONE_TIME expenses over.
+    double amortization_in_years = 12;
+    // ContextURL is a link to information about the cost indicator.
+    //
+    // It can be a google doc or a g3 doc for example.
+    repeated string context_url = 16;
+}

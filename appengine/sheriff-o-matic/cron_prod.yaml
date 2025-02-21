@@ -1,0 +1,82 @@
+cron:
+- description: Send ts_mon metrics
+  url: /internal/cron/ts_mon/housekeeping
+  schedule: every 1 minutes
+
+- description: Delete old annotations
+  url: /internal/cron/annotations_flush_old
+  schedule: every 1 hours
+
+- description: Delete old alerts
+  url: /internal/cron/alerts_flush_old
+  schedule: every 24 hours
+
+- description: Update Android alerts
+  url: /_cron/analyze/android
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Chromium alerts
+  url: /_cron/analyze/chromium
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update ChromeOS on Chrome CI alerts
+  url: /_cron/analyze/chromiumos
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update ChromeOS Alerts
+  url: /_cron/analyze/chromeos
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update iOS alerts
+  url: /_cron/analyze/ios
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Chromium Perf alerts
+  url: /_cron/analyze/chromium.perf
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Chromium GPU alerts
+  url: /_cron/analyze/chromium.gpu
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Chromium Clang alerts
+  url: /_cron/analyze/chromium.clang
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Fuchsia alerts
+  url: /_cron/analyze/fuchsia
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Release Branch alerts
+  url: /_cron/analyze/chrome_browser_release
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Angle alerts
+  url: /_cron/analyze/angle
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Query BigQuery Chrome Project
+  url: /_cron/bq_query/chrome
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Dawn alerts
+  url: /_cron/analyze/dawn
+  schedule: every 5 minutes
+  target: analyzer
+
+- description: Update Devtools Frontend alerts
+  url: /_cron/analyze/devtools_frontend
+  schedule: every 5 minutes
+  target: analyzer

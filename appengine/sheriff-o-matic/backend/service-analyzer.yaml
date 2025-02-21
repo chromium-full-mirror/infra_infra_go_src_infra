@@ -1,0 +1,26 @@
+service: analyzer
+runtime: go123
+app_engine_apis: true
+
+instance_class: F4_1G
+
+handlers:
+- url: /_cron/analyze/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /_cron/bq_query/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /_ah/queue/.*
+  script: auto
+  secure: always
+  login: admin
+
+- url: /admin/.*
+  script: auto
+  secure: always
+  login: admin

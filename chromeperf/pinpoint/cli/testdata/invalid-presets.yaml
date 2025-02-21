@@ -1,0 +1,55 @@
+# This is a collection of invalidly defined presets.
+presets:
+  base: &base
+    telemetry_experiment:
+      config: linux-perf
+      story_selection:
+        story_tags:
+          - all
+      benchmark: some-benchmark
+      measurement: some-measurement
+      extra_args:
+        - "--extra_args"
+        - "something"
+  conflicting-story-selection:
+    <<: *base
+    telemetry_experiment:
+      story_selection:
+        story_tags:
+          - all
+        story: conflict
+  empty-config:
+    <<: *base
+    telemetry_experiment:
+      config:
+  empty-story-selection:
+    <<: *base
+    telemetry_experiment:
+      story_selection:
+  batch-empty-configs:
+      telemetry_batch_experiment:
+        - benchmark: loading.desktop
+          configs:
+            - linux-perf
+            - Win 7 Perf
+          stories:
+            - AirBnB_warm
+            - ArsTechnica_warm
+        - benchmark: system_health.common_mobile
+          stories:
+            - browse:news:cnn:2020
+          story_tags:
+            - tag_a
+            - tag_b
+  batch-empty-stories-and-story-tags:
+    telemetry_batch_experiment:
+      - benchmark: loading.desktop
+        configs:
+          - linux-perf
+          - Win 7 Perf
+        stories:
+          - AirBnB_warm
+          - ArsTechnica_warm
+      - benchmark: system_health.common_mobile
+        configs:
+          - android-pixel2-perf

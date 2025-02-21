@@ -1,0 +1,269 @@
+// Copyright 2019 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package inventory;
+
+option go_package = "go.chromium.org/infra/appengine/cros/lab_inventory/api/v1;api";
+
+import "go.chromium.org/chromiumos/infra/proto/src/lab/device.proto";
+import "go.chromium.org/chromiumos/infra/proto/src/lab/dut_state.proto";
+import "go.chromium.org/chromiumos/infra/proto/src/device/config.proto";
+import "go.chromium.org/chromiumos/infra/proto/src/manufacturing/config.proto";
+import "device/config_id.proto";
+import "lab/servo.proto";
+import "go.chromium.org/infra/cros/lab_inventory/protos/repair_record.proto";
+import "google/protobuf/timestamp.proto";
+
+// The RPCs below to get/add/update/delete devices support batch operation, and
+// the response contains the detail result for each device. The RPCs return OK
+// code as long as the operation complete, regardless if it succeeds on all
+// devices or not.
+service Inventory {
+
+  // GetCrosDevices retrieves requested Chrome OS devices from the inventory.
+  rpc GetCrosDevices(GetCrosDevicesRequest) returns (GetCrosDevicesResponse) {
+    option deprecated = true;
+  };
+
+  // UpdateDutsStatus updates selected Duts' status labels related to testing.
+  rpc UpdateDutsStatus(UpdateDutsStatusRequest) returns (UpdateDutsStatusResponse) {
+    option deprecated = true;
+  };
+
+  // Get a Hwid data for the device from datastore
+  rpc GetHwidData(GetHwidDataRequest) returns (HwidData) {
+    option deprecated = true;
+  };
+
+  // Get manufacturing config for the device from datastore
+  rpc GetManufacturingConfig(GetManufacturingConfigRequest) returns (manufacturing.Config) {
+    option deprecated = true;
+  };
+
+  // Get a device config for the device from datastore
+  rpc GetDeviceConfig(GetDeviceConfigRequest) returns (device.Config);
+
+  // DeviceConfigsExists checks if the device_configs exists in the datastore
+  rpc DeviceConfigsExists(DeviceConfigsExistsRequest) returns (DeviceConfigsExistsResponse);
+
+  // ListDeviceConfigs lists all device configs
+  //
+  // Explicitly not implementing AIP practices (https://google.aip.dev/132) due
+  // to desired deprecation of this service.
+  rpc ListDeviceConfigs(ListDeviceConfigsRequest) returns (ListDeviceConfigsResponse);
+
+  // ListCrosDevicesLabConfig lists the lab configs of all devices saved in Inventor v2.
+  rpc ListCrosDevicesLabConfig(ListCrosDevicesLabConfigRequest) returns (ListCrosDevicesLabConfigResponse);
+
+  // Get a device manual repair record from datastore
+  rpc GetDeviceManualRepairRecord(GetDeviceManualRepairRecordRequest) returns (GetDeviceManualRepairRecordResponse);
+
+  // Create a device manual repair record in datastore
+  rpc CreateDeviceManualRepairRecord(CreateDeviceManualRepairRecordRequest) returns (CreateDeviceManualRepairRecordResponse);
+
+  // Update a device manual repair record in datastore
+  rpc UpdateDeviceManualRepairRecord(UpdateDeviceManualRepairRecordRequest) returns (UpdateDeviceManualRepairRecordResponse);
+
+  // ListManualRepairRecords lists repair records based on filters passed in the
+  // request.
+  rpc ListManualRepairRecords(ListManualRepairRecordsRequest) returns (ListManualRepairRecordsResponse);
+
+  // Get the open manual repair records for a batch of hostnames from datastore
+  rpc BatchGetManualRepairRecords(BatchGetManualRepairRecordsRequest) returns (BatchGetManualRepairRecordsResponse);
+
+  // BatchCreateManualRepairRecords creates multiple manual repair records in
+  // datastore in batch
+  rpc BatchCreateManualRepairRecords(BatchCreateManualRepairRecordsRequest) returns (BatchCreateManualRepairRecordsResponse);
+}
+
+message ListCrosDevicesLabConfigRequest {
+}
+
+message ListCrosDevicesLabConfigResponse {
+  repeated LabConfig lab_configs = 1;
+  // Omit the page tokens as it's only used internally by UFS.
+
+  message LabConfig {
+    lab.ChromeOSDevice config = 1;
+    lab.DutState state = 3;
+    google.protobuf.Timestamp updated_time = 2;
+  }
+}
+
+message DeviceConfigsExistsRequest {
+  // device_configs to check
+  repeated device.ConfigId configIds = 1;
+}
+
+message DeviceConfigsExistsResponse {
+  // Exists Map with true/false for the requested configIds
+  // https://developers.google.com/protocol-buffers/docs/proto3#scalar
+  // There is no int(Only int32 and others) scalar type for proto.
+  // int32 maps to int32 in golang.
+  // To iterate over map exists with int values(int i) - use exists[int32(i)]
+  map<int32, bool> exists = 1;
+}
+
+message DeviceOpResult{
+  string id = 1;
+  string hostname = 2;
+  string error_msg = 3;
+}
+
+message DeviceID {
+  oneof id {
+    string hostname = 1;
+    string chromeos_device_id = 2;
+  }
+}
+
+message GetCrosDevicesRequest {
+  repeated DeviceID ids = 1;
+  repeated string models = 2;
+}
+
+message HwidData {
+  string sku = 1;
+  string variant = 2;
+}
+
+message ExtendedDeviceData {
+  lab.ChromeOSDevice lab_config = 1;
+  device.Config device_config = 2;
+  manufacturing.Config manufacturing_config = 3;
+  HwidData hwid_data = 4;
+  lab.DutState dut_state = 5;
+}
+
+message GetCrosDevicesResponse {
+  repeated ExtendedDeviceData data = 1;
+  repeated DeviceOpResult failed_devices = 2;
+}
+
+message UpdateDutsStatusRequest {
+  repeated lab.DutState states = 1;
+  string reason = 2;
+  // Currently there's no way to get such info before deployment. So temporarily set them
+  // in the request via DutMeta to backfill hwID and serial number.
+  // TODO: find a better way for these infos.
+  repeated DutMeta dut_metas = 3;
+  repeated LabMeta lab_metas = 4;
+}
+
+message DutMeta {
+  string chromeos_device_id = 1;
+  string serial_number = 2;
+  string hwID = 3;
+  string device_sku = 4;
+}
+
+message LabMeta {
+  string chromeos_device_id = 1;
+  string servo_type = 2;
+  bool smart_usbhub = 3;
+  lab.ServoTopology servo_topology = 4;
+}
+
+message UpdateDutsStatusResponse {
+  repeated DeviceOpResult updated_devices = 1;
+  repeated DeviceOpResult failed_devices = 2;
+}
+
+message DeviceProperty {
+  string hostname = 1;
+  string pool = 2;
+
+  message Rpm {
+    string powerunit_name = 1;
+    string powerunit_outlet = 2;
+  }
+  Rpm rpm = 3;
+}
+
+message GetDeviceManualRepairRecordRequest {
+  string hostname = 1;
+}
+
+message GetDeviceManualRepairRecordResponse {
+  inventory.libs.protos.DeviceManualRepairRecord device_repair_record = 1;
+  string id = 2;
+}
+
+message CreateDeviceManualRepairRecordRequest {
+  inventory.libs.protos.DeviceManualRepairRecord device_repair_record = 1;
+}
+
+message CreateDeviceManualRepairRecordResponse {}
+
+message UpdateDeviceManualRepairRecordRequest {
+  inventory.libs.protos.DeviceManualRepairRecord device_repair_record = 1;
+  string id = 2;
+}
+
+message UpdateDeviceManualRepairRecordResponse {}
+
+// Next tag: 7
+message ListManualRepairRecordsRequest {
+  string hostname = 1;
+  string asset_tag = 2;
+  string user_ldap = 4;
+  string repair_state = 5;
+
+  int32 limit = 3;
+  int32 offset = 6;
+}
+
+message ListManualRepairRecordsResponse {
+  repeated inventory.libs.protos.DeviceManualRepairRecord repair_records = 1;
+}
+
+message GetManufacturingConfigRequest {
+  // Hwid of the Asset/DUT
+  string name = 1;
+}
+
+message GetDeviceConfigRequest {
+  device.ConfigId configId = 1;
+}
+
+message GetHwidDataRequest {
+  // Hwid of the Asset/DUT
+  string name = 1;
+}
+
+message BatchGetManualRepairRecordsRequest {
+  repeated string hostnames = 1;
+}
+
+message BatchGetManualRepairRecordsResponse {
+  repeated ManualRepairRecordResult repair_records = 1;
+}
+
+message BatchCreateManualRepairRecordsRequest {
+  repeated inventory.libs.protos.DeviceManualRepairRecord repair_records = 1;
+}
+
+message BatchCreateManualRepairRecordsResponse {
+  repeated ManualRepairRecordResult repair_records = 1;
+}
+
+message ManualRepairRecordResult {
+  inventory.libs.protos.DeviceManualRepairRecord repair_record = 1;
+  string id = 2;
+  // The existence of an error_msg is used to determine whether a result was a
+  // success or failure. The message content is mainly used for UI side logic.
+  string error_msg = 3;
+  string hostname = 4;
+}
+
+// ListDeviceConfigsRequest is currently empty as we do not support pagination
+// or filtering due to desired deprecation of this service.
+message ListDeviceConfigsRequest {}
+
+// ListDeviceConfigsResponse contains a list of all device configs.
+message ListDeviceConfigsResponse {
+  repeated device.Config device_configs = 1;
+}

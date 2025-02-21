@@ -1,0 +1,438 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import { green, red } from '@material-ui/core/colors';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+import { AppState, AppThunk } from '../../app/store';
+import { Period, toTzDate } from '../../utils/dateUtils';
+import { Unit } from '../../utils/formatUtils';
+import {
+  setDataSource,
+  setDates,
+  setMetrics,
+  setNumPeriods,
+  setPeriod,
+} from '../metrics/metricsSlice';
+
+/**
+ * The dataSources slice holds information about the data sources available
+ * on the backend.  Specifically, it knows:
+ * - The name (and pretty name) of the data source.  The name is used as the
+ *   identifier for the data source internally, in URLs, and in caches.
+ * - The backend API that will provide the data for that data source.
+ * - What label to use for the initial section header.  For example, for the
+ *   'cq-builders' data source, the section name is "Builders"
+ * - The metrics that the data source supports.
+ * - The periods (Day, Week, Month, etc) that the data source supports.
+ *
+ * This data structure may migrate to the backend eventually so that the backend
+ * is responsible for letting the UI know what kind of data is available.
+ *
+ * The slice is organized using Redux Toolkit (https://redux-toolkit.js.org/)
+ * conventions.
+ */
+
+/*
+ Catalog of all available data sources, as well as the currently selected
+ dataSource.
+*/
+export interface DataSourcesState {
+  current: string;
+  available: DataSource[];
+  // Key is the name of the dataSource.  This is automatically built by
+  // populateMaps
+  availableMap: { [name: string]: DataSource };
+}
+
+/*
+ Definition for a single data source.
+*/
+export interface DataSource {
+  name: string;
+  prettyName: string;
+  apiDataSource: string;
+  sectionName: string;
+  sectionLinkTemplate?: string;
+  metrics: MetricOption[];
+  periods: PeriodOption[];
+  // Key is the name of the metric.  This is automatically built by
+  // populateMaps
+  metricMap: { [name: string]: MetricOption };
+}
+
+// Specification of available metrics for a dataSource.
+export interface MetricOption {
+  // Name is the name of the metric and is used both as a display value and as
+  // an identifier.
+  name: string;
+  // Unit specifies the base unit of the metric, such as a number, duration, etc
+  // This is used for formatting purposes.
+  unit: Unit;
+  // Description is shown in the UI to explain what a given metric measures.
+  description: string;
+  // isDefault determines whether the metric is shown by default for a given
+  // dataSource.
+  isDefault?: boolean;
+  // hasSubsections specifies whether the given metric is a single value or is
+  // broken out by subSections.
+  hasSubsections?: boolean;
+  // color specifies the color of the metric values
+  color?: MetricOptionColor;
+}
+
+export enum MetricOptionColorType {
+  DeltaAbsolute = 'delta_abs',
+  DeltaPercentage = 'delta_perc',
+}
+
+export interface MetricOptionColor {
+  type: MetricOptionColorType;
+  breakpoints: [number, string][];
+  emptyValue?: number;
+}
+
+// Specification of available periods for a dataSource.
+export interface PeriodOption {
+  // Name is used as a display value.
+  name: string;
+  // The Period enum that this option refers to.
+  period: Period;
+  // isDefault determins whether the metric is shown by default for a given
+  // dataSource.
+  isDefault?: boolean;
+}
+
+// Sets up a basic color gradient. Negative is red, positive is green.
+function colorGradient(
+  type: MetricOptionColorType,
+  threshold: number,
+  opts: {
+    reverse?: boolean;
+    emptyValue?: number;
+  } = {}
+): MetricOptionColor {
+  const color: MetricOptionColor = {
+    type: type,
+    breakpoints: [
+      [-threshold, opts.reverse ? red[400] : green[400]],
+      [threshold, opts.reverse ? green[400] : red[400]],
+    ],
+    emptyValue: opts.emptyValue,
+  };
+  return color;
+}
+
+// Fills in the availableMap object on DataSourcesState, and the metricMap
+// object on the DataSource.  This mutates DataSourceState, but returns it
+// as well so that the function can be chained.
+function populateMaps(state: DataSourcesState): DataSourcesState {
+  state.available.forEach((dataSource) => {
+    state.availableMap[dataSource.name] = dataSource;
+    for (const metric of dataSource.metrics) {
+      dataSource.metricMap[metric.name] = metric;
+    }
+  });
+  return state;
+}
+
+const initialState: DataSourcesState = populateMaps({
+  current: '',
+  available: [
+    {
+      name: 'cq-builders',
+      apiDataSource: 'cq_builders',
+      prettyName: 'CQ Builders',
+      sectionName: 'Builders',
+      sectionLinkTemplate:
+        'https://ci.chromium.org/p/chromium/builders/try/SECTION_NAME',
+      metrics: [
+        {
+          name: 'P50',
+          unit: Unit.Duration,
+          description: `Time from create_time to end_time (Pending + Runtime)`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 10 * 60),
+        },
+        {
+          name: 'P90',
+          isDefault: true,
+          unit: Unit.Duration,
+          description: `Time from create_time and end_time (Pending + Runtime)`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 20 * 60),
+        },
+        {
+          name: 'Count',
+          unit: Unit.Number,
+          description: `How many times this builder ran`,
+        },
+        {
+          name: 'P50 Runtime',
+          unit: Unit.Duration,
+          description: `Time from start_time to end_time (actual execution
+          time)`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 10 * 60),
+        },
+        {
+          name: 'P90 Runtime',
+          unit: Unit.Duration,
+          description: `Time from start_time to end_time (actual execution
+          time)`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 20 * 60),
+        },
+        {
+          name: 'P50 Pending',
+          unit: Unit.Duration,
+          description: `Time from create_time to start_time (builder wait
+          time)`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 5 * 60),
+        },
+        {
+          name: 'P90 Pending',
+          unit: Unit.Duration,
+          description: `Time from create_time to start_time (builder wait
+          time)`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 10 * 60),
+        },
+        {
+          name: 'P50 Phase Runtime',
+          unit: Unit.Duration,
+          hasSubsections: true,
+          description: `Duration of the 4 main builder phases for the "with
+          patch" section of the build.  Retries and some phases, such as isolate
+          tests, are not included here.`,
+          color: colorGradient(MetricOptionColorType.DeltaPercentage, 0.2),
+        },
+        {
+          name: 'P90 Phase Runtime',
+          isDefault: true,
+          unit: Unit.Duration,
+          hasSubsections: true,
+          description: `Duration of the 4 main builder phases for the "with
+          patch" section of the build.  Retries and some phases, such as isolate
+          tests, are not included here.`,
+          color: colorGradient(MetricOptionColorType.DeltaPercentage, 0.2),
+        },
+        {
+          name: 'P50 Total Test Runtime',
+          unit: Unit.Duration,
+          description: `Sum of swarming test task runtimes for each build`,
+          color: colorGradient(MetricOptionColorType.DeltaPercentage, 0.1),
+        },
+        {
+          name: 'P90 Total Test Runtime',
+          unit: Unit.Duration,
+          description: `Sum of swarming test task runtimes for each build`,
+          color: colorGradient(MetricOptionColorType.DeltaPercentage, 0.1),
+        },
+        {
+          name: 'Test Suite Runs',
+          unit: Unit.Number,
+          hasSubsections: true,
+          description: `How many times the test suite ran.`,
+        },
+        {
+          name: 'Test Case Count',
+          unit: Unit.Number,
+          description: `How many tests were run in the builder/suite combo`,
+        },
+        {
+          name: 'P50 Slow Tests',
+          unit: Unit.Duration,
+          hasSubsections: true,
+          description: `P50 runtime of slow tests, which is defined as tests
+          where the P50 runtime exceeded 5 minutes, or the P90 runtime exceeded
+          10 minutes. The runtime is of the slowest shard, so if a test has 4
+          shards that ran in 4m, 5m, 6m, and 7m, the duration for that test
+          would be 7m.`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 5 * 60, {
+            emptyValue: 0,
+          }),
+        },
+        {
+          name: 'P90 Slow Tests',
+          unit: Unit.Duration,
+          hasSubsections: true,
+          description: `P90 runtime of slow tests, which is defined as tests
+          where the P50 runtime exceeded 5 minutes, or the P90 runtime exceeded
+          10 minutes. The runtime is of the slowest shard, so if a test has 4
+          shards that ran in 4m, 5m, 6m, and 7m, the duration for that test
+          would be 7m.`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 10 * 60, {
+            emptyValue: 0,
+          }),
+        },
+        {
+          name: 'Retry With Patch Rate',
+          unit: Unit.Percentage,
+          hasSubsections: true,
+          description: `Percentage of times where the suite was run and then
+          ran a retry with patch`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 0.05),
+        },
+        {
+          name: 'Retry Without Patch Rate',
+          unit: Unit.Percentage,
+          hasSubsections: true,
+          description: `Percentage of times where the suite was run and then
+          ran a retry without patch`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 0.05),
+        },
+        {
+          name: 'P50 Total Suite Runtime',
+          unit: Unit.Duration,
+          hasSubsections: true,
+          description: `P50 total runtime test suites. This is the total
+          swarming time used on a builder suite combination including
+          overhead`,
+          color: colorGradient(MetricOptionColorType.DeltaPercentage, 0.1),
+        },
+        {
+          name: 'P90 Total Suite Runtime',
+          unit: Unit.Duration,
+          hasSubsections: true,
+          description: `P90 total runtime test suites. This is the total
+          swarming time used on a builder suite combination including
+          overhead`,
+          color: colorGradient(MetricOptionColorType.DeltaPercentage, 0.1),
+        },
+        {
+          name: 'Shard Expirations',
+          unit: Unit.Number,
+          hasSubsections: true,
+          description: `The number of shards from the test suite that have
+          a status of EXPIRED`,
+          color: colorGradient(MetricOptionColorType.DeltaAbsolute, 1),
+        },
+      ],
+      periods: [
+        {
+          name: 'Day',
+          period: Period.Day,
+        },
+        {
+          name: 'Week',
+          period: Period.Week,
+          isDefault: true,
+        },
+      ],
+      metricMap: {},
+    },
+  ],
+  availableMap: {},
+});
+
+const empty: DataSource = {
+  name: '',
+  apiDataSource: '',
+  prettyName: '',
+  sectionName: '',
+  metrics: [],
+  periods: [],
+  metricMap: {},
+};
+
+// Shows the currently selected source, or the empty DataSource if one
+// is not selected.
+export const selectCurrentSource = (state: AppState): DataSource => {
+  if (state.dataSources.current === '') return empty;
+  return state.dataSources.availableMap[state.dataSources.current];
+};
+
+// Returns the currently available data sources.
+export const selectAvailable = (state: AppState): DataSource[] =>
+  state.dataSources.available;
+
+const dataSourcesSlice = createSlice({
+  name: 'dataSources',
+  initialState,
+  reducers: {
+    updateCurrent(state, action: PayloadAction<string>) {
+      state.current = action.payload;
+    },
+  },
+});
+
+const { updateCurrent } = dataSourcesSlice.actions;
+
+export const actions = dataSourcesSlice.actions;
+
+export default dataSourcesSlice.reducer;
+
+// Sets the current data source.  This will either use defaults for what metrics
+// and period to show, or pull them from local storage preferences if available.
+export const setCurrent = (
+  name: string,
+  params?: URLSearchParams
+): AppThunk => async (dispatch, getState) => {
+  const state = getState();
+  if (!(name in state.dataSources.availableMap)) {
+    return;
+  }
+  if (state.dataSources.current === name) {
+    return;
+  }
+
+  const dataSource = state.dataSources.availableMap[name];
+
+  const renamedMetrics = new Map<string, string>([
+    ['Count Tests', 'Test Suite Runs'],
+  ])
+
+  // Sets the metrics to show based on URL parameters, local storage
+  // preferences, or whatever is default for the data source.
+  let metrics: string[] = [];
+  if (params !== undefined && params.has('metric')) {
+    metrics = params
+      .getAll('metric')
+      .map((metric) => renamedMetrics.get(metric) || metric)
+      .filter((metric) => metric in dataSource.metricMap);
+  } else if (
+    name in state.preferences.dataSources &&
+    state.preferences.dataSources[name].metrics !== undefined
+  ) {
+    metrics = (state.preferences.dataSources[name].metrics as string[]).filter(
+      (metric) => metric in dataSource.metricMap
+    );
+  } else {
+    for (const metric of dataSource.metrics) {
+      if (metric.isDefault) {
+        metrics.push(metric.name);
+      }
+    }
+  }
+
+  let period = dataSource.periods[0].period;
+  if (params !== undefined && params.has('period')) {
+    period = params.get('period') as Period;
+  } else {
+    for (const p of dataSource.periods) {
+      if (p.isDefault) {
+        period = p.period;
+      }
+    }
+  }
+
+  if (params !== undefined && params.has('periods')) {
+    const periods = params.get('periods');
+    if (periods != null) {
+      const numPeriods = parseInt(periods);
+      await dispatch(setNumPeriods(numPeriods));
+    }
+  } else if (state.preferences.numPeriods !== undefined) {
+    await dispatch(setNumPeriods(state.preferences.numPeriods));
+  }
+
+  let date = new Date();
+  if (params !== undefined && params.has('date')) {
+    date = toTzDate(params.get('date') as string);
+  }
+
+  // TODO(gatong): This is a really ugly set of dispatches that needs to be
+  // refactored. Should be replaced with a single update.
+  await dispatch(updateCurrent(name));
+  await dispatch(setDataSource(dataSource.apiDataSource));
+  await dispatch(setPeriod(period));
+  await dispatch(setMetrics(metrics));
+  await dispatch(setDates(date));
+};

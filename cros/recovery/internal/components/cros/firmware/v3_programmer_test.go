@@ -1,0 +1,431 @@
+// Copyright 2022 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package firmware
+
+import (
+	"context"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+
+	"go.chromium.org/luci/common/errors"
+	"go.chromium.org/luci/common/testing/ftt"
+	"go.chromium.org/luci/common/testing/truth/assert"
+	"go.chromium.org/luci/common/testing/truth/should"
+
+	"go.chromium.org/infra/cros/recovery/internal/components/mocks"
+	"go.chromium.org/infra/cros/recovery/logger"
+)
+
+func TestProgrammerV3ProgramEC(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := logger.NewLogger()
+	imagePath := "ec_image.bin"
+	fwBoard := ""
+	ftt.Run("Happy path for stm32 chip", t, func(t *ftt.Test) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=stm32 --image=ec_image.bin --port=95 --bitbang_rate=57600 --verify --verbose": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("stm32"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_servo_micro_and_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(95).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path for other chips", t, func(t *ftt.Test) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=some_chip --image=ec_image.bin --port=96 --verify --verbose": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("some_chip"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_servo_micro_and_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(96).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path for ite chip on ccd", t, func(t *ftt.Test) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=it8XXXX --image=ec_image.bin --port=95 --verify --verbose --nouse_i2c_pseudo": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("it8XXXX"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(95).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path for ite chip on servo_micro", t, func(t *ftt.Test) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=it8yyyyy --image=ec_image.bin --port=96 --verify --verbose": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("it8yyyyy"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_servo_micro_and_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(96).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("use try_apshutdown is expected for ccd_cpu_fw_spi_depends_on_ec_fw:yes (1)", t, func(t *ftt.Test) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=just_chip --image=ec_image.bin --port=96 --verify --verbose --try_apshutdown": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("yes"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("just_chip"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_servo_micro_and_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(96).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("use try_apshutdown is expected for cpu_fw_spi_depends_on_ec_fw:yes (2)", t, func(t *ftt.Test) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=just_chip --image=ec_image.bin --port=96 --verify --verbose --try_apshutdown": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("yes"), nil).Times(1)
+		// not called as above already told yes.
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(nil).Times(0)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(0)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("just_chip"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_servo_micro_and_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(96).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("do not use try_apshutdown if controls are not present", t, func(t *ftt.Test) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=just_chip --image=ec_image.bin --port=96 --verify --verbose": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(errors.Reason("Not present").Err()).Times(1)
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(errors.Reason("Not present").Err()).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("yes"), nil).Times(0)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(0)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("just_chip"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_servo_micro_and_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(96).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("set try_apshutdown and board when fun flash", t, func(t *ftt.Test) {
+		fwBoard = "reef"
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		runRequest := map[string]RunResponse{
+			"which flash_ec": {},
+			"flash_ec --chip=just_chip --image=ec_image.bin --port=96 --verify --verbose --board=reef --try_apshutdown": {},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Has(ctx, "cpu_fw_spi").Return(nil).Times(1)
+		servod.EXPECT().Get(ctx, "cpu_fw_spi_depends_on_ec_fw").Return(stringValue("yes"), nil).Times(1)
+		// not called as above already told yes.
+		servod.EXPECT().Has(ctx, "ccd_cpu_fw_spi").Return(nil).Times(0)
+		servod.EXPECT().Get(ctx, "ccd_cpu_fw_spi_depends_on_ec_fw").Return(stringValue("no"), nil).Times(0)
+		servod.EXPECT().Get(ctx, "ec_chip").Return(stringValue("just_chip"), nil).Times(1)
+		servod.EXPECT().Get(ctx, "servo_type").Return(stringValue("servo_v4_with_servo_micro_and_ccd_cr50"), nil).Times(1)
+		servod.EXPECT().Port().Return(96).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programEC(ctx, fwBoard, imagePath)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+}
+
+func TestProgrammerV3ProgramAP(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.Background()
+	logger := logger.NewLogger()
+	imagePath := "image-board.bin"
+	ftt.Run("Happy path w/o ifdtool", t, func(t *ftt.Test) {
+		runRequest := map[string]RunResponse{
+			"which futility": {},
+			"futility update -i image-board.bin --servo_port=97": {},
+			"which ifdtool": {Output: `ifdtool not found`, Err: errors.Reason("failed with error code 1").Err()},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Port().Return(97).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programAP(ctx, imagePath, "", false)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path w/o ifd config", t, func(t *ftt.Test) {
+		runRequest := map[string]RunResponse{
+			"which futility": {},
+			"futility update -i image-board.bin --servo_port=97": {},
+			"which ifdtool": {},
+			"cbfstool image-board.bin extract -n config -f image-board.bin-config": {},
+			"cat image-board.bin-config": {Output: ``},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Port().Return(97).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programAP(ctx, imagePath, "", false)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path with csme unlock chipset", t, func(t *ftt.Test) {
+		runRequest := map[string]RunResponse{
+			"which futility": {},
+			"futility update -i image-board.bin --servo_port=97 --quirks unlock_csme": {},
+			"which ifdtool": {},
+			"cbfstool image-board.bin extract -n config -f image-board.bin-config": {},
+			"cat image-board.bin-config": {Output: `CONFIG_IFD_CHIPSET=adl
+`},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Port().Return(97).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programAP(ctx, imagePath, "", false)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path with csme unlock ifdpath nissa", t, func(t *ftt.Test) {
+		runRequest := map[string]RunResponse{
+			"which futility": {},
+			"futility update -i image-board.bin --servo_port=97 --quirks unlock_csme": {},
+			"which ifdtool": {},
+			"cbfstool image-board.bin extract -n config -f image-board.bin-config": {},
+			"cat image-board.bin-config": {Output: `CONFIG_IFD_BIN_PATH=/some/random/nissa/path
+`},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Port().Return(97).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programAP(ctx, imagePath, "", false)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path with csme unlock ifdpath unsupported", t, func(t *ftt.Test) {
+		runRequest := map[string]RunResponse{
+			"which futility": {},
+			"futility update -i image-board.bin --servo_port=97": {},
+			"which ifdtool": {},
+			"cbfstool image-board.bin extract -n config -f image-board.bin-config": {},
+			"cat image-board.bin-config": {Output: `CONFIG_IFD_BIN_PATH=/some/random/path
+`},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Port().Return(97).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programAP(ctx, imagePath, "", false)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path with GBB 0x18", t, func(t *ftt.Test) {
+		runRequest := map[string]RunResponse{
+			"which futility": {},
+			"futility update -i image-board.bin --servo_port=91 --gbb_flags=0x18": {},
+			"which ifdtool": {Output: `ifdtool not found`, Err: errors.Reason("failed with error code 1").Err()},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Port().Return(91).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programAP(ctx, imagePath, "0x18", false)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+	ftt.Run("Happy path with force update", t, func(t *ftt.Test) {
+		runRequest := map[string]RunResponse{
+			"which futility": {},
+			"futility update -i image-board.bin --servo_port=97 --force": {},
+			"which ifdtool": {Output: `ifdtool not found`, Err: errors.Reason("failed with error code 1").Err()},
+		}
+		servod := mocks.NewMockServod(ctrl)
+		servod.EXPECT().Port().Return(97).Times(1)
+		run, runCounter := mockRunnerWithCheck(runRequest)
+		p := &v3Programmer{
+			run:    run,
+			servod: servod,
+			log:    logger,
+		}
+
+		err := p.programAP(ctx, imagePath, "", true)
+		assert.Loosely(t, err, should.BeNil)
+		assert.Loosely(t, runCounter(), should.Equal(len(runRequest)))
+	})
+}
+
+var gbbToIntCases = []struct {
+	name string
+	in   string
+	out  int
+	fail bool
+}{
+	{"Empty value", "", 0, true},
+	{"Incorrect value", "raw", 0, true},
+	{"GBB 0", "0", 0, false},
+	{"GBB 0x0", "0x0", 0, false},
+	{"GBB 0x1", "0x1", 1, false},
+	{"GBB 0x8", "0x8", 8, false},
+	{"GBB 0x18", "0x18", 24, false},
+	{"GBB 0x24", "0x24", 36, false},
+	{"GBB 0x39", "0x39", 57, false},
+	{"GBB 0x00000039", "0x00000039", 57, false},
+}
+
+func TestGbbToInt(t *testing.T) {
+	t.Parallel()
+	for _, c := range gbbToIntCases {
+		cs := c
+		t.Run(cs.name, func(t *testing.T) {
+			got, err := gbbToInt(cs.in)
+			if cs.fail {
+				if err == nil {
+					t.Errorf("%q -> expected to fail but passed", cs.name)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("%q -> expected to pass by fail %s", cs.name, err)
+				} else if got != cs.out {
+					t.Errorf("%q -> wanted: %v => got: %v", cs.name, cs.out, got)
+				}
+			}
+		})
+	}
+}

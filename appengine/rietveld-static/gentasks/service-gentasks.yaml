@@ -1,0 +1,13 @@
+# Copyright 2020 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+runtime: go123
+
+service: gentasks
+
+env_variables:
+  PROCESS_PAGE_URL: "https://us-central1-chromiumcodereview-hr.cloudfunctions.net/process_page"
+  PROCESS_SERVICE_ACCOUNT: "chromiumcodereview-hr@appspot.gserviceaccount.com"
+
+manual_scaling:
+  instances: 1

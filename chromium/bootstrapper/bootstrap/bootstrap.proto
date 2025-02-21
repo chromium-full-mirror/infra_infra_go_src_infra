@@ -1,0 +1,128 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// The protos describing the properties controlling the bootstrapper binary
+
+syntax = "proto3";
+
+package chromium.bootstrapper.bootstrap;
+
+option go_package = "go.chromium.org/infra/chromium/bootstrapper/bootstrap";
+
+import "go.chromium.org/luci/buildbucket/proto/common.proto";
+
+// A reference to a gitiles repository that will be accessed as part of the
+// bootstrap process
+message GitilesRepo {
+  // Required, the gitiles host containing the repository
+  string host = 1;
+  // Required, the name of the repo on the host
+  string project = 2;
+}
+
+// The input properties identifying the location that the bootstrapped
+// properties can be found
+//
+// Next ID: 4
+message BootstrapPropertiesProperties {
+  // A project where the builder property files are retrieved from a specified
+  // repository
+  message TopLevelProject {
+    // Required, the gitiles URL of the repository containing the builder
+    // property files
+    GitilesRepo repo = 1;
+
+    // Required, the ref of the repository to find the property files on
+    //
+    // If no gitiles input or gerrit change is present on the buildbucket build
+    // proto, this is the ref that the builder property files will be retrieved
+    // from.
+    //
+    // If a gitiles input or gerrit change is present on the buildbucket build
+    // proto, this ref will be ignored (this allows for the flexibility to run
+    // trunk try builders against canary branches).
+    string ref = 2;
+  }
+
+  // A project where the builder property files are retrieved from a repository
+  // whose revision is determined by the DEPS of another repository
+  //
+  // Next ID: 7
+  message DependencyProject {
+    reserved 5;
+    reserved "fallback_config_repo_paths";
+
+    // Required, the gitiles repo that contains the DEPS file that will
+    // determine the revision of the config repository to retrieve the builder
+    // property files from
+    GitilesRepo top_level_repo = 1;
+    // Required, the ref of the top-level repository to get the DEPS file from
+    //
+    // If no gitiles input or gerrit change is present, this is the ref that the
+    // DEPS file will be checked out from.
+    //
+    // If a gitiles input or gerrit change is present on the buildbucket build
+    // proto, this ref will be ignored (this allows for the flexibility to run
+    // trunk try builders against canary branches).
+    string top_level_ref = 2;
+
+    // Required, the gitiles repo containing the builder property files
+    GitilesRepo config_repo = 3;
+    // Details to find the config repo, one of the fields MUST be set
+    oneof config_repo_locator {
+      // The path that the config repository is checked out to by gclient (a key
+      // into the deps dict in the DEPS file)
+      string config_repo_path = 4;
+      // The path to the submodule within the top-level repo that refers to the
+      // config repo
+      string config_repo_submodule_path = 6;
+    }
+  }
+
+  // Details to find the repo and revision containing the builder property
+  // files, one of the fields MUST be set
+  oneof config_project {
+    TopLevelProject top_level_project = 1;
+    DependencyProject dependency_project = 2;
+  }
+
+  // Required, the path to the properties file, relative to the root of the
+  // config repo
+  string properties_file = 3;
+  // The path to the shadow properties file, relative to the root of the config
+  // repo
+  //
+  // If this is set and the build is an led real build, then the properties will
+  // be read from the shadow properties file and will override the values set by
+  // the standard properties file. Any properties set in the build request
+  // itself will still override these values.
+  string shadow_properties_file = 4;
+}
+
+// The input properties identifying the executable to bootstrap
+//
+// Next ID: 2
+message BootstrapExeProperties {
+  // Required, the executable to bootstrap
+  buildbucket.v2.Executable exe = 1;
+}
+
+// Optional input properties specifying per-trigger values.
+//
+// Next ID: 2
+message BootstrapTriggerProperties {
+
+  // Commits to search when looking for the properties file
+  //
+  // When a bootstrapped builder triggers another builder with the expectation
+  // that it will check out the same version of source, this can transmit the
+  // commits that the bootstrapper used to find the properties file so that if
+  // the triggered builder is also bootstrapped it loads properties from the
+  // same revision. When needing to download a file from gitiles for a given
+  // host and project, it will search for a commit first in the build proto and
+  // then search this list in order. If a commit that matches the host and
+  // project is found, then the file will be downloaded from the ref or ID of
+  // the matching commit.
+  repeated buildbucket.v2.GitilesCommit commits = 1;
+}

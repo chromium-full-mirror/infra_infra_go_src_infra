@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# ./integration_tests
+
+# die prints a message to stderr and exits abornmally.
+die() {
+  printf '%s\n' "$@" 1>&2; exit 1;
+}
+
+# main runs the integration tests.
+main() {
+  export CDPATH=
+  readonly selfdir="$(dirname -- "$0")" || die 'cannot find self dir'
+  cd -- "$selfdir" || die 'cannot chdir'
+  cd -- .. || die 'cannot chdir to parent'
+  test -f FleetCostMakefile || die 'failed heuristic, no FleetCostMakefile'
+
+  readonly fleetcost="./fleetcost"
+
+  test -f "$fleetcost" || die 'cannot find fleetcost binary'
+
+  td="$(mktemp -d)" || die 'cannot make tempdir'
+  test -d "$td" || die 'no tempdir'
+
+  (./fleetcostserver 1>"$td"/server.out 2>"$td"/server.err)&
+  sleep 1
+
+  test_suite
+
+  case "$?" in
+    0) : "do nothing"
+    ;;
+    *)
+       cat -- "$td"/server.out "$td"/server.err
+       die "unexpected status $?"
+    ;;
+  esac
+}
+
+# TODO: use the child PID.
+cleanup() {
+  killall fleetcostserver
+}
+
+trap cleanup INT EXIT
+
+test_suite() {
+  "$fleetcost" ping      -local \
+     || die 'test 1: ping'
+  "$fleetcost" pingufs   -local \
+     || die 'test 2: ping-ufs'
+  "$fleetcost" create-ci -local -board=board -model=model -location=all -type=dut -cost=45.33 \
+     || die 'test 3: create-ci'
+  "$fleetcost" get-ci    -local \
+     || die 'test 4: get-ci'
+}
+
+main "$@"

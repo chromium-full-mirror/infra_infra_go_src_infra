@@ -1,0 +1,51 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package unifiedfleet.api.v1.models.chromeos.lab;
+
+option go_package = "go.chromium.org/infra/unifiedfleet/api/v1/models/chromeos/lab;ufspb";
+
+// This proto defines modem labels in lab config of a DUT.
+
+// Next Tag: 6
+message ModemInfo {
+  ModemType type = 1;
+  // Equipment Identifier
+  string imei = 2;
+  // Comma separated band numbers
+  string supported_bands = 3;
+  // Number of SIM's present
+  int32 sim_count = 4;
+  // The device model cellular sub-variant.
+  string model_variant = 5;
+}
+
+// Next Tag: 9
+enum ModemType {
+  MODEM_TYPE_UNSPECIFIED = 0;
+  // Unsupported modem
+  MODEM_TYPE_UNSUPPORTED = 8;
+  // Qualcomm modem
+  MODEM_TYPE_QUALCOMM_SC7180 = 1;
+  // Fibocomm modem
+  MODEM_TYPE_FIBOCOMM_L850GL = 2;
+  // NL668
+  MODEM_TYPE_NL668 = 3;
+  // FM350
+  MODEM_TYPE_FM350 = 4;
+  // FM101
+  MODEM_TYPE_FM101 = 5;
+  // SC7280
+  MODEM_TYPE_QUALCOMM_SC7280 = 6;
+  // EM060
+  MODEM_TYPE_EM060 = 7;
+  // RW101
+  MODEM_TYPE_RW101 = 9;
+  // RW135
+  MODEM_TYPE_RW135 = 10;
+  // LCUK54
+  MODEM_TYPE_LCUK54 = 11;
+}

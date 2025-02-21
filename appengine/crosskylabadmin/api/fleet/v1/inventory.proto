@@ -1,0 +1,152 @@
+// Copyright 2018 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package crosskylabadmin.fleet;
+
+option go_package = "go.chromium.org/infra/appengine/crosskylabadmin/api/fleet/v1;fleet";
+
+import "go.chromium.org/chromiumos/infra/proto/src/lab_platform/stable_version.proto";
+import "google/api/field_behavior.proto";
+
+// Inventory service helps manage ChromeOS DUTs.
+service Inventory {
+  // GetStableVersion reads the stable version for a particular DUT from datastore
+  //
+  // There is intentionally no RPC for overwriting the stable version with arbitrary content.
+  rpc GetStableVersion(GetStableVersionRequest) returns (GetStableVersionResponse);
+
+  // GetRecoveryVersion reads the recovery version for a particular board/model/host.
+  rpc GetRecoveryVersion(GetRecoveryVersionRequest) returns (GetRecoveryVersionResponse);
+
+  // SetSatlabStableVersion sets the stable version value (for which CrOSSkylabAdmin is the source of truth),
+  // for satlab devices only.
+  rpc SetSatlabStableVersion(SetSatlabStableVersionRequest) returns (SetSatlabStableVersionResponse);
+
+  // DeleteSatlabStableVersion deletes the satlab stable version value from CrOSSkylabAdmin which is the source of truth
+  // for satlab devices only.
+  rpc DeleteSatlabStableVersion(DeleteSatlabStableVersionRequest) returns (DeleteSatlabStableVersionResponse);
+
+  // DumpStableVersionToDatastore reads the stable version from the LUCI config file
+  // and writes it to datastore.
+  rpc DumpStableVersionToDatastore(DumpStableVersionToDatastoreRequest) returns (DumpStableVersionToDatastoreResponse);
+}
+
+// next tag: 5
+message GetStableVersionRequest {
+  // TODO(gregorynisbet): remove support for looking up
+  // stable version information by buildTarget + model
+  string buildTarget = 1;
+  string model = 2;
+  // NOTE: {hostname} and {buildTarget, model} are alternatives
+  string hostname = 3;
+  //
+  // SatlabInformationalQuery identifies whether this request is an information-only request coming
+  // from the satlab CLI.
+  //
+  // Supporting `./satlab get-stable-version -model ... -board ...`, which is necessary for users to be
+  // able to how the stable versions are configured for their devices, requires us to be able to identify
+  // requests for board+model that are intended to be associated with satlab devices.
+  //
+  // In the normal flow, which looks at hostnames only, we distinguish a satlab or non-satlab request using
+  // `heuristics.LooksLikeSatlabDevice(hostname)`.
+  //
+  bool satlabInformationalQuery = 4;
+}
+
+// next tag: 6
+message GetStableVersionResponse {
+  string crosVersion = 1;
+  string firmwareVersion = 2;
+  string faftVersion = 3;
+  string servoCrosVersion = 4;
+  // Reason is an explanation of *why* this particular stable version
+  // was picked. Possible values are:
+  //
+  // 1) "host-specific"
+  // 2) "board and model"
+  //
+  // This value is intended to be informational, and either logged or presented to an end user.
+  string reason = 5;
+}
+
+message GetRecoveryVersionRequest {
+  // Name of device listed in inventory.
+  string device_name = 1;
+  string device_type = 5;
+  string board = 2 [(google.api.field_behavior) = REQUIRED];
+  string model = 3 [(google.api.field_behavior) = REQUIRED];
+  repeated string pools = 4;
+}
+
+message GetRecoveryVersionResponse {
+  lab_platform.StableVersion version = 1;
+}
+
+// SatlabBoardAndModelStrategy is a combination of keys that define a stable version entry for Satlab
+// devices. This kind of entry is scoped to a board and model.
+// The satlab ID is requested but currently ignored.
+message SatlabBoardAndModelStrategy {
+  string satlabID = 1;
+  string board = 2;
+  string model = 3;
+}
+
+// SatlabHostnameStrategy is the key used for a Satlab stable version entry that is scoped to a specific host.
+// We request the satlab ID in addition to the hostname for future-proofing reasons.
+message SatlabHostnameStrategy {
+  string satlabID = 1;
+  string hostname = 2;
+}
+
+message SetSatlabStableVersionRequest {
+  oneof strategy {
+    SatlabBoardAndModelStrategy satlabBoardAndModelStrategy = 1;
+    SatlabHostnameStrategy satlabHostnameStrategy = 2;
+  }
+  string crosVersion = 3;
+  string firmwareVersion = 4;
+  // This is the same thing as the "faftVersion", but it uses the newer terminology.
+  string firmwareImage = 5;
+}
+
+message SetSatlabStableVersionResponse {
+}
+
+// SatlabBoardModelDeletionCriterion is similar to SatlabBoardAndModelStrategy,
+// but
+//     a) All the fields must be provided for the request to be well-formed.
+//     b) We guarantee that there will be exactly one best match at all times.
+//
+message SatlabBoardModelDeletionCriterion {
+  string satlabID = 1;
+  string board = 2;
+  string model = 3;
+}
+
+// SatlabHostnameDeletionCriterion is similar to SatlabHostnameStrategy,
+// but
+//     a) All the fields must be provided for the request to be well-formed.
+//     b) We guarantee that there will be exactly one best match at all times.
+//
+message SatlabHostnameDeletionCriterion {
+  string satlabID = 1;
+  string hostname = 2;
+}
+
+message DeleteSatlabStableVersionRequest{
+  oneof strategy {
+    SatlabBoardModelDeletionCriterion satlabBoardModelDeletionCriterion = 1;
+    SatlabHostnameDeletionCriterion satlabHostnameDeletionCriterion = 2;
+  }
+}
+
+message DeleteSatlabStableVersionResponse {
+  bool didDelete = 1;
+  string reason = 2;
+}
+
+message DumpStableVersionToDatastoreRequest {}
+message DumpStableVersionToDatastoreResponse {}

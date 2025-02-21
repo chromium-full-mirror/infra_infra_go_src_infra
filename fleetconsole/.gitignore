@@ -1,0 +1,10 @@
+# Ignore consoleadmin as a file only.
+consoleadmin
+!consoleadmin/
+
+# Ignore fleetconsoleserver as a file only.
+fleetconsoleserver
+!fleetconsoleserver/
+
+# Python virtual environment
+venv

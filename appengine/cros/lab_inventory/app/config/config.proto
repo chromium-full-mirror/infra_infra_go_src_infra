@@ -1,0 +1,150 @@
+// Copyright 2019 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package lab_inventory.config;
+
+option go_package = "go.chromium.org/infra/appengine/cros/lab_inventory/app/config";
+
+// Note: docstrings use generated go style variable names.
+
+message LuciAuthGroup {
+  string value = 1;
+}
+
+// Config is the configuration data served by luci-config for this app.
+// Next tag: 20
+message Config {
+  reserved 1;
+
+  // AdminService contains information about the skylab admin instances.
+  AdminService admin_service = 2;
+
+  // The access groups of the inventory.
+  LuciAuthGroup readers = 3;
+  LuciAuthGroup status_writers = 4;
+  LuciAuthGroup setup_writers = 5;
+  LuciAuthGroup privileged_writers = 6;
+
+  string hwid_secret = 7;
+
+  Gitiles device_config_source = 8;
+  Gitiles manufacturing_config_source = 9;
+
+  // The git repo information of inventory v1.
+  // TODO(guocb) remove this after migration.
+  InventoryV1Repo inventory = 12;
+
+  // Environment managed by this instance of app, e.g. ENVIRONMENT_STAGING,
+  // ENVIRONMENT_PROD, etc.
+  string environment = 10;
+
+  // The hostname of drone-queen service to push inventory to.
+  string queen_service = 11;
+
+  // Report the DUT utilization or not.
+  bool enable_inventory_reporting = 13;
+
+  // HaRT PubSub Configs
+  HaRT hart = 14;
+  LuciAuthGroup pubsub_pushers = 15;
+
+  ProjectConfigLocation project_config_source = 16;
+
+  // Asset tag backfilling configuration
+  AssetTagBackfill backfilling_config = 17;
+
+  // UFS service endpoint
+  string ufs_service = 18;
+
+  // UFS routing control
+  UfsRouting routing = 19;
+}
+
+// Next tag: 6
+message ProjectConfigLocation {
+  // The gs bucket path for program configs in DLM.
+  string program_configs_gs_path = 1;
+  // The gitiles host for the actual device project configs, e.g. 'chrome-internal.googlesource.com'.
+  string gitiles_host = 2;
+  // The project name for any device project, e.g. "chromeos/programs/galaxy"
+  string project = 3;
+  // The branch to get the config file, e.g. "master"
+  string branch = 4;
+  // Indicate if new project configs are fully enabled.
+  bool enable_project_config = 5;
+  // The joined config jsonproto path, e.g. "generated/configs.jsonproto".
+  string joined_config_path = 6;
+}
+
+message AdminService {
+  // The skylab admin GAE server hosting the admin services.
+  string host = 1;
+}
+
+message Gitiles{
+  // The gitiles host name, e.g. 'chrome-internal.googlesource.com'.
+  string host = 1;
+  // The project (repo) name, e.g. 'chromeos/infra/config'.
+  string project = 2;
+  // The commit hash/branch to be checked out, e.g. 'refs/heads/master'.
+  string committish = 3;
+  // The path of the file to be downloaded, e.g. 'path/to/file.cfg'.
+  string path = 4;
+}
+
+message InventoryV1Repo{
+  string host = 1;
+  string project = 2;
+  string branch = 3;
+  string lab_data_path = 4;
+  string infrastructure_data_path = 5;
+  bool multifile = 6;
+}
+
+message HaRT {
+  string project = 1;
+  string topic = 2;
+  string subscription = 3;
+}
+
+// Next Tag: 5
+message AssetTagBackfill {
+  bool enable = 1;
+  // Number of devices to be backfilled per hour
+  int32 rate = 2;
+  // BQ table to use for backfilling (assets_in_swarming)
+  string table = 3;
+  // Dataset for the said BQ table (inventory)
+  string dataset = 4;
+}
+
+// Flags to control API routing to UFS.
+message UfsRouting {
+  // Deivce API flags.
+  bool add_cros_devices = 1;
+  bool get_cros_devices = 2;
+  bool update_duts_status = 3;
+  bool update_cros_devices_setup = 4;
+  bool update_labstations = 5;
+  bool delete_cros_devices = 6;
+  bool batch_update_devices = 7;
+
+  // Asset API flags.
+  bool add_assets = 8;
+  bool get_assets = 9;
+  bool delete_assets = 10;
+  bool update_assets = 11;
+
+  // cron job for dronequeen push.
+  // As UFS migration is over, this is no longer used.
+  bool disable_dronequeen_push = 12 [deprecated=true];
+
+  // cron job for BQ Device/Dutstate dump.
+  bool dump_devices_bq = 13;
+
+  // crons job for BQ Asset and AssetInfo dump.
+  bool dump_assets_bq = 14;
+}

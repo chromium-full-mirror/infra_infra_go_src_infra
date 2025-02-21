@@ -1,0 +1,171 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto3";
+
+package chrome.dir_metadata;
+
+option go_package = "go.chromium.org/infra/tools/dirmd/proto;dirmdpb";
+
+import "go.chromium.org/infra/tools/dirmd/proto/chromeos/chromeos.proto";
+
+// Metadata information for a directory.
+//
+// Individual fields/subfields are inherited by subdirectories.
+// For example, if a/DIR_METADATA specifies `monorail.project="chromium"` and
+// a/b/DIR_METADATA file exists and does not specify `monorail.project`, then
+// `a/b`'s Monorail project is "chromium".
+// Note: this semantics can be extended to opt-out individual fields from
+// inheritance.
+message Metadata {
+  reserved 8;
+  reserved "inherit_from";
+
+  // Paths to Metadata files to import into this file.
+  //
+  // A mixin is imported AS IS, without inheritance from its ancestors.
+  // To prevent confusion, a mixin's base name may not be DIR_METADATA.
+  // Instead, the file name must entail its scope, e.g. the software component
+  // that it is describing.
+  //
+  // Mixins can be useful to reduce duplication of metadata across the repo.
+  // For example in Java, implementation and tests of the same feature live in
+  // different directories. Common metadata can be placed in a mixin, and then
+  // imported by DIR_METADATA files in both directories.
+  //
+  // A path must be source-absolute, e.g. "//components/autofill/COMMON_METADATA"
+  // Here the root is the root of the repository which contains the current
+  // file.
+  //
+  // Precedence:
+  // * Mixins override values in the parent directory.
+  // * The order of mixins is significant: if the same attribute is defined in
+  //   two mixins, then the later one wins.
+  // * Values defined in the importee override values in the mixins.
+  //
+  // Importing mixins in mixins is not supported.
+  // Only DIR_METADATA files are allowed to use this field.
+  repeated string mixins = 10;
+
+  // Monorail metadata. Its component field should always map to the same
+  // team_email field (see below) for every directory that it is listed in.
+  Monorail monorail = 1;
+
+  // The team responsible for the directory. Only a single email is allowed.
+  // For example, “team-email@chromium.org”.
+  string team_email = 2;
+
+  // The code in this directory is specific to this OS.
+  OS os = 3;
+
+  // WPT-specific metadata.
+  WPT wpt = 4;
+
+  // Private buganizer metadata.
+  Buganizer buganizer = 5;
+
+  // ResultDB tags.
+  ResultDB resultdb = 6;
+
+  // Public buganizer metadata.
+  Buganizer buganizer_public = 7;
+
+  // Reserved for metadata information for third-party code. See
+  // https://opensource.google/docs/thirdparty/metadata/
+  reserved 13;
+  reserved "third_party";
+
+  // ChromeOS specific metadata.
+  chrome.dir_metadata.chromeos.ChromeOS chromeos = 9;
+
+  // Metadata Overrides
+  //
+  // Used for files that require different Metadata from the one specified in
+  // the same dir or inherited from levels above. Override metadata should only
+  // apply to files within the directory specified, and cannot be inherited,
+  // meaning that it only applies to the files directly specified in the
+  // directory. For example, overrides in a/*.txt will not apply to files in
+  // a/b/*.txt. Values for Metadata specified in these ovrrides should follow
+  // the same rules. Mixins defined under overrides are not supported.
+  repeated MetadataOverride overrides = 11;
+}
+
+// WPT is WebPlatformTest-specific metadata.
+message WPT {
+  // Whether wpt-importer should notify the team about new failures.
+  Trinary notify = 1;
+}
+
+// Supported OS to tag a directory.
+enum OS {
+  OS_UNSPECIFIED = 0;
+  LINUX = 1;
+  WINDOWS = 2;
+  MAC = 3;
+  ANDROID = 4;
+  IOS = 5;
+  CHROME_OS = 6;
+  FUCHSIA = 7;
+  LACROS = 8;
+}
+
+// Monorail specific metadata.
+message Monorail {
+  // The Monorail project. For example, “chromium”.
+  string project = 1;
+  // The Monorail component. For example, “UI>Browser>Zoom”.
+  // Only a single component is allowed.
+  string component = 2;
+}
+
+// Buganizer specific metadata.
+message Buganizer {
+  // The component id. For example, 690873.
+  int64 component_id = 1;
+}
+
+// Metadata override definition
+message MetadataOverride {
+  // a list of regex strings defining file_patterns.
+  //
+  // all file_patterns listed here are relative to the location of the
+  // DIR_METADATA file. file patterns listed here are directly passed to git
+  // ls-files to find all files associated with that pattern. for example, if
+  // DIR_METADATA is specified at a/b/DIR_METADATA, and file_pattern is
+  // \*.proto, `git ls-files --full-name a/b/\*.proto` will be run to identify
+  // files.
+  repeated string file_patterns = 1;
+
+  // Note that mixin imports are not supported for override definitions.
+  Metadata metadata = 2;
+}
+
+// Trinary is a tri-state boolean.
+//
+// It is convenient for conceptually-boolean fields that need inheritance.
+// Plain bool does not work well because proto3 does not distinguish between
+// false and absence of the value. Unlike bool, the default value of Trinary
+// is TRINARY_UNSPECIFIED which is different from NO.
+//
+// Unfortunately the JSON representation are strings "YES" and "NO", as opposed
+// to more natural true and false.
+// The alternative to Trinary is BoolValue
+// https://github.com/protocolbuffers/protobuf/blob/master/src/google/protobuf/wrappers.proto#L101
+// which has JSON representation as `true` and `false`, but then the text-proto
+// representation is verbose: `wpt { notify { value: true }}`.
+// Given that we will have more DIR_METADATA files than code that interprets
+// the files, we make a choice in favor of clean DIR_METADATA files.
+enum Trinary {
+  TRINARY_UNSPECIFIED = 0;
+  YES = 1;
+  NO = 2;
+}
+
+// ResultDB contains a list of tags to be attached to results of tests
+// defined in a directory.
+message ResultDB {
+  // A list of tags to be attached to results of tests defined in a directory.
+  // Each tag must be formatted as "key:value", and keys can be repeated.
+  repeated string tags = 1;
+}

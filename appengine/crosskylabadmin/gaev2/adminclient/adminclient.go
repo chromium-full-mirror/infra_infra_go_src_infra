@@ -1,0 +1,56 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// This is the client (called "adminclient") for the GAEv2 version of CrOSSkylabAdmin.
+// This client is intended to support testing, development work, and manual administrative tasks.
+// The command line interface presented here should very closely follow the RPC interface for CSA.
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/maruel/subcommands"
+
+	"go.chromium.org/luci/auth/client/authcli"
+	"go.chromium.org/luci/common/cli"
+	"go.chromium.org/luci/common/logging/gologger"
+
+	"go.chromium.org/infra/appengine/crosskylabadmin/gaev2/adminclient/cmds"
+	"go.chromium.org/infra/appengine/crosskylabadmin/site"
+)
+
+// NewApplication returns an application object for the adminclient tool.
+func newApplication() *cli.Application {
+	return &cli.Application{
+		Name:  "adminclient",
+		Title: "CrOSSkylabAdmin client",
+		Context: func(ctx context.Context) context.Context {
+			return gologger.StdConfig.Use(ctx)
+		},
+		Commands: []*subcommands.Command{
+			subcommands.Section("Authentication"),
+			authcli.SubcommandInfo(site.DefaultAuthOptions, "whoami", false),
+			authcli.SubcommandLogin(site.DefaultAuthOptions, "login", false),
+			authcli.SubcommandLogout(site.DefaultAuthOptions, "logout", false),
+			// This section should eventually contain all CrOSSkylabAdmin RPCs.
+			subcommands.Section("CrosAdm RPCs"),
+			cmds.GetStableVersion,
+			cmds.SetStableVersion,
+			cmds.DeleteStableVersion,
+			cmds.PushBotsForAdminTasks,
+			// This section should contain only the UFS RPCs that are realistically needed
+			// to test CrOSSkylabAdmin functionality. If an RPC isn't needed or is no longer
+			// needed for this purpose, remove it.
+			subcommands.Section("UFS RPCs"),
+			cmds.GetMachineLSE,
+			cmds.GetDevice,
+		},
+	}
+}
+
+// Main is the main entrypoint for adminclient.
+func main() {
+	os.Exit(subcommands.Run(newApplication(), nil))
+}

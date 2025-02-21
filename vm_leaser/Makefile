@@ -1,0 +1,104 @@
+# Copyright 2022 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+PROJECT_PATH := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
+APP_PATH := $(PROJECT_PATH)
+GCP_PROJECT := chrome-fleet-vm-leaser-dev
+GCP_REGION := us-central1-a
+LUCI_AUTH_SERVICE := chrome-infra-auth-dev.appspot.com
+
+define help_message
+
+Helpers for managing VM Leaser project in $(PROJECT_PATH)
+
+For the main VM Leaser service:
+  gen: regenerate all go bindings
+  build: build the VM Leaser service image
+  dev: run the VM Leaser service locally
+  push-image: build and push the latest image to the ${GCP_PROJECT} project
+
+For the cron service:
+  build-cron: build the VM Leaser cron image
+  dev-cron: run the VM Leaser cron service locally
+
+endef
+
+.PHONY: help
+help:
+	$(info $(help_message))
+
+# Run Go tests
+.PHONY: test
+test:
+	go test ./... -coverprofile=coverage.out
+
+# Check code coverage
+.PHONY: cover
+cover:
+	go tool cover -func=coverage.out
+
+# Build service image
+.PHONY: build
+build:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o vm-leaser-service $(PROJECT_PATH)/cmd/vm_leaser
+
+# Run service locally
+.PHONY: dev
+dev: build
+	./vm-leaser-service \
+	--auth-service-host=${LUCI_AUTH_SERVICE} \
+	--grpc-addr=":50051" \
+	--http-addr=":8800" \
+	--admin-addr=":8900"
+
+# Build Docker service
+.PHONY: build-docker
+build-docker: build
+	docker build --tag=gcr.io/${GCP_PROJECT}/vm-leaser-service:latest --file=./cmd/vm_leaser/docker/Dockerfile .
+
+# Push Docker image to GCP
+.PHONY: push-image
+push-image: build-docker
+  docker push gcr.io/${GCP_PROJECT}/vm-leaser-service:latest
+
+# Run Docker service locally
+.PHONY: dev-docker
+dev-docker: build-docker
+	docker run --rm --interactive --tty --user $(id -u):$(id -g) \
+	-p 50051:50051 \
+	-p 8800:8800 \
+	-p 8900:8900 \
+	-v ~/.config/chrome_infra/auth:/tokens \
+	gcr.io/${GCP_PROJECT}/vm-leaser-service:latest \
+		-cloud-project ${GCP_PROJECT} \
+		-auth-service-host=${LUCI_AUTH_SERVICE} \
+		-grpc-addr :50051 \
+		-http-addr :8800 \
+		-admin-addr :8900 \
+		-token-cache-dir /tokens
+
+# Deploy Docker service
+.PHONY: deploy-docker
+deploy-docker: build-docker
+	gcloud run deploy vm-leaser-service \
+	--image=gcr.io/${GCP_PROJECT}/vm-leaser-service:latest \
+	--platform=managed \
+	--use-http2 \
+	--project=${GCP_PROJECT} \
+	--region=${GCP_REGION}
+
+# Build cron service
+.PHONY: build-cron
+build-cron:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o cron-service $(PROJECT_PATH)/cmd/cron
+
+# Run cron service locally
+.PHONY: dev-cron
+dev-cron: build-cron
+	./cron-service \
+	--http-addr=":8801" \
+	--admin-addr=":8901" \
+	--auth-service-host=${LUCI_AUTH_SERVICE} \
+	--gcp-projects=${GCP_PROJECT}

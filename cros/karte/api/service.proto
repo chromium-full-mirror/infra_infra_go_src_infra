@@ -1,0 +1,214 @@
+// Copyright 2021 The LUCI Authors. All rights reserved.
+// Use of this source code is governed under the Apache License, Version 2.0
+// that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package chromeos.karte;
+
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+import "go.chromium.org/infra/cros/karte/api/action.proto";
+import "go.chromium.org/infra/cros/karte/api/observation.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go.chromium.org/infra/cros/karte/api;kartepb";
+
+// The Karte service is responsible for storing events and observations
+// related to DUTs and querying them.
+service Karte {
+  // CreateAction creates an action and returns the action just created.
+  rpc CreateAction(CreateActionRequest) returns (Action) {
+    option (google.api.http) = {
+      post: "/v1/actions"
+      body: "action"
+    };
+  }
+
+  // CreateObservation creates an observation and returns the observation
+  // that was just created.
+  // This API is based on https://google.aip.dev/133.
+  rpc CreateObservation(CreateObservationRequest) returns (Observation) {
+    option (google.api.http) = {
+      post: "/v1/observations"
+      body: "observation"
+    };
+  }
+
+  // PersistAction persists a single action to bigquery directly.
+  rpc PersistAction(PersistActionRequest) returns (PersistActionResponse) {
+    option (google.api.http) = {
+      get: "/v1/persist-actions"
+    };
+  }
+
+  // PersistActionRange persists a range of actions organized by their creation time.
+  // Since the seal time is typically what we are interested in, not the creation time, this RPC
+  // also takes a seal time as a parameter.
+  rpc PersistActionRange(PersistActionRangeRequest) returns (PersistActionRangeResponse) {
+    option (google.api.http) = {
+      get: "/v1/persist-actions"
+    };
+  }
+
+  // ListActions lists all the actions that Karte knows about.
+  // The order in which the actions are returned is undefined.
+  rpc ListActions(ListActionsRequest) returns (ListActionsResponse) {
+    option (google.api.http) = {
+      get: "/v1/actions"
+    };
+  }
+
+  // ListObservations lists all the observations that Karte knows about.
+  // The order in which the observations are returned is undefined.
+  rpc ListObservations(ListObservationsRequest)
+      returns (ListObservationsResponse) {
+    option (google.api.http) = {
+      get: "/v1/options"
+    };
+  }
+}
+
+// CreateActionRequest creates a single action.
+message CreateActionRequest {
+  Action action = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// CreateObservationRequest creates a single action.
+message CreateObservationRequest {
+  // An observation is the observation record being created.
+  Observation observation = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// PersistActionRequest describes the single action to persist.
+message PersistActionRequest {
+   // The ID of the single action to persist.
+   string action_id = 1 [(google.api.field_behavior) = REQUIRED];
+
+   // If true, check for the presence of a BigQuery record with the appropriate ID before
+   // persisting. If false, add the record anyway.
+   bool check_for_duplicate = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// PersistActionRangeRequest describes what range of actions to persist.
+//
+// The semantics of this request are a little bit tricky.
+//
+// In Karte, the name is a combination of the Karte name version identifier (originally "zzzz" and counting down)
+// and the creation time.
+//
+// If the user passes in no version (really an empty version, but logically no version), then we compare based on
+// the creation time only. Specifying neither the start version nor the end version is always semantically correct,
+// but might be inefficient.
+//
+// If both the start_version and stop_version are non-empty, then we will use them to construct a range on the names
+// as well. This range will be intersected with the range based on the creation time.
+//
+// In short, passing in the start version and stop version is an optimization.
+message PersistActionRangeRequest {
+  // Start_time is the nominal start time. Defaults to one hour before the present.
+  google.protobuf.Timestamp start_time = 1;
+  // Start_version is the Karte record version corresponding to the start, for example "zzzz".
+  string start_version = 4;
+
+  // Stop_time is the nominal stop time. Defaults to the present.
+  google.protobuf.Timestamp stop_time = 2;
+  // Stop_version is the Karte record version corresponding to the stop, for example "zzzz".
+  string stop_version = 5;
+
+  // Seal_time_seconds defaults to the current seal time, expressed in seconds.
+  // The seal time is the maximum amount of time that an event can be modifiable for.
+  int32 seal_time_seconds = 3;
+}
+
+// ListActionsRequest takes a page size and a token indicating where to start.
+message ListActionsRequest {
+  // The maximum number of actions to return. The service may return fewer than
+  // this value.
+  // If unspecified, at most 50 actions will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 1;
+
+  // A page token, received from a previous `ListActions` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListActions` must match
+  // the call that provided the page token.
+  string page_token = 2;
+
+  // Filter is a query using an expression syntax described in
+  // filter_syntax.md.
+  //
+  // Currently, every field is filterable.
+  string filter = 3;
+}
+
+// PersistActionResponse is the response to a persist actions request.
+message PersistActionResponse {
+  // Created record is true if and only if a new record was created as a result of
+  // this API call.
+  bool created_record = 1;
+
+  // Succeeded is true if and only if the call was successful. It is possible for a
+  // call to be successful without producing a new record.
+  bool succeeded = 2;
+}
+
+// PersistActionRangeResponse is the response to a persist actions request.
+message PersistActionRangeResponse {
+  // Created_records is the number of created records.
+  int32 created_records = 1;
+
+  // Succeeded is true if and only if no errors at all were encountered during persistence.
+  bool succeeded = 2;
+}
+
+// ListActionsResponse returns the actions in question and returns a page token
+// indicating where to start looking in the next search.
+// The page token will be empty if and only if we have reached the end of the
+// results.
+message ListActionsResponse {
+  // These are all the actions fitting the criteria specified. Currently, no
+  // criteria can be provided, so every action matches.
+  repeated Action actions = 1;
+
+  // This is the page token that is needed for pagination. This token
+  // must be supplied verbatim to subsequent calls to ListActions.
+  string next_page_token = 2;
+}
+
+// ListObservationsRequest take a page size and a token indicating where to
+// start.
+message ListObservationsRequest {
+  // The maximum number of observations to return. The service may return fewer
+  // than this value. If unspecified, at most 50 observations will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 1;
+
+  // A page token, received from a previous `ListObservations` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListObservations` must
+  // match the call that provided the page token.
+  string page_token = 2;
+
+  // Filter is a query using an expression syntax described in
+  // filter_syntax.md.
+  //
+  // Currently supported filterable values for actions are:
+  // - metric_kind
+  string filter = 3;
+}
+
+// ListObservationsResponse returns the observations in quetoin and returns a
+// page token indicating where to start looking in the next search. The page
+// token will be empty if and only if we have reached the end of the results.
+message ListObservationsResponse {
+  // These are all the actions fitting the criteria specified. Currently, no
+  // criteria can be provided, so every action matches.
+  repeated Observation observations = 1;
+
+  // This is the page token that is needed for pagination. This token
+  // must be supplied verbatim to subsequent calls to ListActions.
+  string next_page_token = 2;
+}

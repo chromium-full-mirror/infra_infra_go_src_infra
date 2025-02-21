@@ -1,0 +1,102 @@
+// Copyright 2023 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package firmware
+
+// targetOverrideModels holds a map of models that need to override its firmware target.
+var targetOverrideModels = map[string]string{
+	// TODO(b/226402941): Read existing ec image name using futility.
+	"dragonair": "dratini",
+	// Models that use _signed version of firmware.
+	"drallion360": "drallion_signed",
+	"sarien":      "sarien_signed",
+	"arcada":      "arcada_signed",
+	"drallion":    "drallion_signed",
+	// Octopus board.
+	"foob360":    "foob",
+	"blooglet":   "bloog",
+	"garg360":    "garg",
+	"laser14":    "phaser",
+	"bluebird":   "casta",
+	"vorticon":   "meep",
+	"dorp":       "meep",
+	"orbatrix":   "fleex",
+	"blooguard":  "bloog",
+	"grabbiter":  "fleex",
+	"apel":       "ampton",
+	"nospike":    "ampton",
+	"phaser360":  "phaser",
+	"blorb":      "bobba",
+	"droid":      "bobba",
+	"garfour":    "garg",
+	"vortininja": "meep",
+	"sparky":     "bobba",
+	"sparky360":  "bobba",
+	"bobba360":   "bobba",
+	"mimrock":    "meep",
+	// Grunt board.
+	"barla":     "careena",
+	"kasumi":    "aleena",
+	"kasumi360": "aleena",
+	// Brya board.
+	"zavala":   "volmar",
+	"crota360": "crota",
+	// Trogdor board.
+	"pazquel360": "pazquel",
+	"limozeen":   "lazor",
+	// Volteer board.
+	"lillipup": "lindar",
+	// Rex board.
+	"rex":        "rex0", // EVT b/313364449
+	"screebo4es": "screebo4es",
+	// Nissa board.
+	"pujjo1e":      "pujjo",
+	"pujjoteen":    "pujjo",
+	"pujjoteen15w": "pujjo",
+}
+
+// targetOverrideHwidSkus holds a map of hwid that need to override its firmware target.
+// Some latest models may uses different firmware based on there hwid, so decide firmware
+// based on models are not sufficient for them.
+var targetOverridebyHwid = map[string]string{
+	// Nissa board.
+	"JOXER-ZELG B3B-C3A-Q6B-I2C-C9Y-A9N":         "joxer_ufs",
+	"JOXER-IPBR D4B-B7A-T2D-A4A-D4K-P6A-A9R":     "joxer_ufs",
+	"JOXER-MEZV E5B-A7B-N22-Y4C-Q2B-B34-A7L":     "joxer_ufs",
+	"NIRWEN-ZZCR B2B-B2A-B2A-W7H":                "nivviks_ufs",
+	"NEREID-ZZCR A4B-B2C-E3E-F2A-A2B-48T":        "nereid_hdmi",
+	"PUJJOTEEN-JQII E5B-D2J-E5D-Q2Q-K4E-I5I-A6I": "pujjo_5g",
+	"PUJJOTEEN-JQII G6B-D2I-F5E-Q6A-L2H-I4Y-A7N": "pujjo_5g",
+	"YAHIKO-BNXG C4B-F2A-H3D-B2R-Q5M-E95":        "yaviks_ufs",
+	"YAHIKO-BNXG C4B-F2A-H3D-B2T-Q5M-E45":        "yaviks_ufs",
+	"YAHIKO-OPUT B3B-G4H-D2B-X6F-H64-Y9A":        "yaviks_ufs",
+	"YAHIKO-OPUT B3B-G4H-D2B-X6F-P24-Y4M":        "yaviks_ufs",
+	"YAHIKO-OPUT C4B-G3F-H3D-I2E-V26-E7J":        "yaviks_ufs",
+	"YAHIKO-OPUT C4B-G3F-H3D-I2E-V36-U92":        "yaviks_ufs",
+	"YAHIKO-OPUT C4B-G3F-H3D-I2F-F36-E8R":        "yaviks_ufs",
+	"YAVIKS-BVSW B3B-A2C-B2A-Q6W-I3T":            "yaviks_ufs",
+	"YAVIKS-BVSW C4B-C2C-C3B-H4H-66N":            "yaviks_ufs",
+	"YAVIKSO-OFRL C4C-B2D-D3B-Q3E-X66":           "yaviks_ufs",
+	"YAVIKSO-OFRL C4C-C2F-D3B-W3P-N4E":           "yaviks_ufs",
+	"YAVIJO-PORH B3C-G3K-O4K-79T-I3X":            "yavilla_ufs",
+	"YAVIJO-PORH C4B-K3I-K5G-L3P-24C":            "yavilla_ufs",
+	"YAVILLY-ITWJ B3B-G2H-C8K-79E-W4S":           "yavilla_ufs",
+	"AVIJO-PORH B3C-G3K-O4K-79T-I3X":             "yavilla_ufs",
+	"CRAASKANA-QRII B2B-B3B-B3A-C3C-63A":         "craask_hdmi",
+	"CRAASKANA-QRII C3B-D3E-C4A-D4E-D6A-A6R":     "craask_hdmi",
+	"CRAASKANA-QRII B2B-A2A-B3A-A2D-C4L":         "craask_hdmi",
+	"CRAASKANA-QRII C3B-E3D-C4A-A4H-O6A-A8D":     "craask_hdmi",
+	"CRAASWELL-KKAE B2B-C4C-A2A-A2E-B6A-A63":     "craask_hdmi",
+	"CRAASWELL-KKAE B2B-A3B-A2A-C4E-W6A-A2G":     "craask_hdmi",
+	"CRAASWELL-KKAE B2B-B2A-A2A-B5H-46A-A9L":     "craask_hdmi",
+	"CRAASWELL-KKAE C3B-B2F-C2B-C5F-U2Q-A9R":     "craask_hdmi",
+}
+
+// ecExemptedModels holds a map of models that doesn't have EC firmware.
+var ecExemptedModels = map[string]bool{
+	"drallion360": true,
+	"sarien":      true,
+	"arcada":      true,
+	"drallion":    true,
+}

@@ -1,0 +1,10 @@
+cron:
+- description: "Update daily summary job"
+  url: /internal/cron/update-daily-summary
+  schedule: every 6 hours synchronized
+  timezone: America/Los_Angeles
+
+- description: "Update CQ Presubmit Data"
+  url: /internal/cron/update-presubmit-data
+  schedule: every 24 hours synchronized
+  timezone: America/Los_Angeles

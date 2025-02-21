@@ -1,0 +1,1016 @@
+// Copyright 2018 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+syntax = "proto2";
+
+package chrome.chromeos_infra.skylab.proto.inventory;
+option go_package = "go.chromium.org/infra/libs/skylab/inventory;inventory";
+
+// This proto definition describes the on-disk configuration data describing the
+// ChromeOS skylab inventory. This is _not_ intended to be used as an API
+// definition between services. As a result, fields are marked as required
+// whenever strict checking is desired, and the proto definition can change
+// relatively freely in the future.
+
+import "go.chromium.org/infra/libs/skylab/inventory/common.proto";
+
+// NEXT TAG: 4
+message Device {
+  // Each of these must contain a 'CommonDeviceSpecs common' field.
+  // We will use this informal composition based sharing rather than proto
+  // extensions because extensions are unwieldy, and we really want composition
+  // not inhertence.
+  oneof device {
+    DeviceUnderTest dut = 1;
+    ServoHostDevice servo_host = 2;
+    ChameleonDevice chameleon = 3;
+  };
+}
+
+// NEXT TAG: 2
+message DeviceUnderTest {
+  required CommonDeviceSpecs common = 1;
+  optional RemovalReason removal_reason = 2;
+}
+
+// NEXT TAG: 2
+message ServoHostDevice {
+  required CommonDeviceSpecs common = 1;
+  optional string version = 2;
+}
+
+// NEXT TAG: 2
+message ChameleonDevice {
+  required CommonDeviceSpecs common = 1;
+}
+
+//
+// Keep sorted by field name.
+//
+// NEXT TAG: 12
+message CommonDeviceSpecs {
+  // These are opaque keyvals for skylab services. Devices may arbitrarily
+  // define any attributes they want.
+  repeated KeyValue attributes = 9;
+
+  // A device may be locked for multiple reasons by multiple people. All locks
+  // need to be removed for the device to go back into circulation.
+  repeated DeviceLock device_locks = 6;
+
+  optional Environment environment = 10;
+
+  required string hostname = 2;
+
+  // An invariant property corresponding to the hardware deployed for this
+  // device.
+  optional string hwid = 3;
+
+  required string id = 1;
+
+  // The scheduling system uses these to target jobs at the right kinds of
+  // devices.
+  optional SchedulableLabels labels = 8;
+
+  optional Location location = 5;
+
+  // Deprecated: This is needed for the master AFE in the autotest infra to
+  // forward RPCs to the relevant shard for a device.
+  // Not to be used in skylab.
+  optional Shard owner_shard = 7 [deprecated = true];
+
+  // An invariant about the distros inventory tag associated with the device.
+  // For ChromeOS devices, this can be read off of vboot.
+  optional string serial_number = 4;
+
+  // Similar to a useless machine, if set to true, automatic inventory
+  // updates should set this back to false.  This can be used to test
+  // that automated updates are firing correctly.
+  optional bool useless_switch = 11;
+}
+
+// RemovalReason describes the reason for a DUT being removed from running
+// tasks. See also go/skylab-dut-removal-reason NEXT TAG: 4
+message RemovalReason {
+  // bug is a link to a bug in crbug.com or other bug tracker.  Required.
+  optional string bug = 1;
+  // comment should be a short comment to provide quick context for
+  // the removal reason.  This should not be used as a replacement for
+  // keeping the bug up to date with context.
+  optional string comment = 2;
+  // expire_time indicates when the reason for removal should be
+  // revisited so that DUTs don't get forgotten.  Required.
+  optional Timestamp expire_time = 3;
+}
+
+// NEXT TAG: 5
+message Location {
+  required PhysicalLab lab = 1;
+  required int32 row = 2;
+  required int32 rack = 3;
+  required int32 host = 4;
+}
+
+// NEXT TAG: 2
+message PhysicalLab {
+  required string name = 1;
+}
+
+// A DeviceLock is a generic way of pulling any lab device out of commission
+// temporarily. This allows us to quickly take out a device without deleting it
+// from inventory. The exact effect of locking a device varies by the type of
+// device and services involved.
+// NEXT TAG: 6
+message DeviceLock {
+  required bool lock = 1 [deprecated = true];
+  // This field is informational only. Do not assume this as a real user
+  // identity in any auth domain.
+  required string locked_by = 2;
+  required string lock_reason = 3;
+  required Timestamp begin_time = 4;
+  required Timestamp expire_time = 5;
+  required int32 lock_id = 6 [deprecated = true];
+  required string id = 7;
+}
+
+// NEXT TAG: 2
+message Shard {
+  required string hostname = 1;
+}
+
+// These labels are used for scheduling decisions in skylab. They should be
+// semantically known to the inventory service to allow filtering based on them.
+// (i.e., no "extra_labels" field down here)
+//
+// Keep sorted by field name.
+//
+// NEXT TAG: 44
+message SchedulableLabels {
+  // Whether this device supports ARC execution environment.
+  optional bool arc = 20;
+
+  // TODO(pprabhu) This should be an enum shared with stable_versions.proto
+  // But there are 171 of them...
+  optional string board = 2;
+
+  // This matches the brand id in chromiumos/infra/proto/src/device/brand_id.proto
+  optional string brand = 26;
+
+  // Whether this device is connected to a CallBox.
+  optional bool callbox = 38;
+
+  optional HardwareCapabilities capabilities = 5;
+
+  // Similar to device phases, but for the cr50 module onboard.
+  //
+  // NEXT TAG: 3
+  enum CR50_Phase {
+    CR50_PHASE_INVALID = 0;
+    CR50_PHASE_PREPVT = 1;
+    CR50_PHASE_PVT = 2;
+  }
+  optional CR50_Phase cr50_phase = 22;
+
+  // Example: cr50-ro-keyid:prod
+  // Example: cr50-ro-keyid:0xaa66150f
+  optional string cr50_ro_keyid = 28;
+
+  // Example: cr50-ro-version:0.0.10
+  optional string cr50_ro_version = 29;
+
+  // Example: cr50-rw-keyid:prod
+  // Example: cr50-rw-keyid:0xde88588d
+  optional string cr50_rw_keyid = 30;
+
+  // Example:cr50-rw-version:0.3.20
+  optional string cr50_rw_version = 31;
+
+  // critical_pools are pool labels that the builders are dependent on, and that
+  // the cros-infra team is responsible for managing explicitly. All other pool
+  // labels used for adhoc labeling of DUTs go into self_serve_pools.
+  //
+  // NEXT TAG: 9
+  enum DUTPool {
+    DUT_POOL_INVALID = 0;
+    DUT_POOL_CQ = 1;
+    DUT_POOL_BVT = 2;
+    DUT_POOL_SUITES = 3;
+    DUT_POOL_CTS = 4;
+    DUT_POOL_CTS_PERBUILD = 5;
+    DUT_POOL_CONTINUOUS = 6;
+    DUT_POOL_ARC_PRESUBMIT = 7;
+    DUT_POOL_QUOTA = 8;
+  }
+  repeated DUTPool critical_pools = 3;
+
+  // NEXT TAG: 3
+  enum CTSABI {
+    CTS_ABI_INVALID = 0;
+    CTS_ABI_ARM = 1;
+    CTS_ABI_X86 = 2;
+  }
+  repeated CTSABI cts_abi = 14;
+
+  // NEXT TAG: 3
+  enum CTSCPU {
+    CTS_CPU_INVALID = 0;
+    CTS_CPU_ARM = 1;
+    CTS_CPU_X86 = 2;
+  }
+  repeated CTSCPU cts_cpu = 21;
+
+  // NEXT TAG: 2
+  enum ECType {
+    EC_TYPE_INVALID = 0;
+    EC_TYPE_CHROME_OS = 1;
+  }
+  optional ECType ec_type = 10;
+
+  repeated string hwid_component = 33;
+
+  // crbug.com/994200: this matches to label "sku" in autotest.
+  optional string hwid_sku = 27;
+
+  // Example: 2931
+  optional string dlm_sku_id = 40;
+
+  // The set of software licenses assigned to the device.
+  repeated License licenses = 34;
+
+  optional string model = 13;
+
+  // Modem Info
+  optional ModemInfo modeminfo = 35;
+
+  optional string sku = 25;
+
+  // SIM information
+  repeated SIMInfo siminfo = 36;
+
+  // NEXT TAG: 6
+  enum OSType {
+    OS_TYPE_INVALID = 0;
+    OS_TYPE_ANDROID = 1;
+    OS_TYPE_CROS = 2;
+    OS_TYPE_JETSTREAM = 3;
+    OS_TYPE_MOBLAB = 4;
+    OS_TYPE_LABSTATION = 5;
+  }
+  optional OSType os_type = 15;
+
+  optional Peripherals peripherals = 19;
+
+  // Devices go through the phases EVT -> DVT -> PVT during early development.
+  // Post launch devices are in the MP phase.
+  // Certain phases end up having to be repeated as hardware evolves. Leave some
+  // scope for iteration within phases.
+  //
+  // NEXT TAG: 9
+  enum Phase {
+    PHASE_INVALID = 0;
+    PHASE_EVT = 1;
+    PHASE_EVT2 = 2;
+    PHASE_DVT = 3;
+    PHASE_DVT2 = 4;
+    PHASE_PVT = 5;
+    PHASE_PVT2 = 6;
+    PHASE_PVT3 = 7;
+    PHASE_MP = 8;
+  }
+  optional Phase phase = 16;
+
+  // TODO(pprabhu) This should be an enum shared with stable_versions.proto
+  // But there are 171 of them...
+  optional string platform = 1;
+
+  // The RACC enabled status of the DUT.
+  optional string racc_enabled_status = 43;
+
+  optional string reference_design = 24;
+
+  repeated string self_serve_pools = 4;
+
+  // Refer to whether this DUT is stable enough to be scheduled for a test.
+  optional bool stability = 37;
+
+  optional TestCoverageHints test_coverage_hints = 18;
+
+  // useless_switch does nothing.  Like a useless machine, if set to
+  // true, automatic label updates should set this back to false.
+  // This can be used to test that automated updates are firing
+  // correctly.
+  optional bool useless_switch = 23;
+
+  repeated string variant = 17;
+
+  // Come from manufacturing config: crbug.com/1046971
+  optional string wifi_chip = 32;
+
+  // devboard_type specifies the type of devboard
+  optional DevboardType devboard_type = 39;
+
+  // Indicates whether we have wifi network setup on the hosting location.
+  optional bool wifi_on_site = 41;
+
+  // TODO(b/350065958): Remove when bot/dut is decoupled from device manager.
+  // bot_size is used for test scheduler and device manager to assign tests to
+  // bots with enough RAM size.
+  optional BotSize bot_size = 42;
+
+  // NEXT TAG: 2
+  enum BotSize {
+    BOT_SIZE_INVALID = 0;
+    BOT_SIZE_LARGE = 1;
+  }
+
+  // NEXT TAG: 4
+  enum DevboardType {
+    DEVBOARD_TYPE_INVALID = 0;
+    DEVBOARD_TYPE_ANDREIBOARD =1;
+    DEVBOARD_TYPE_ICETOWER = 2;
+    DEVBOARD_TYPE_DRAGONCLAW = 3;
+  }
+}
+
+// Keep sorted by field name.
+//
+// NEXT TAG: 28
+message HardwareCapabilities {
+  optional bool atrus = 17;
+  optional bool bluetooth = 7;
+
+  // NEXT TAG: 30
+  enum Carrier {
+    CARRIER_INVALID = 0;
+    CARRIER_ATT = 1;
+    CARRIER_TMOBILE = 2;
+    CARRIER_VERIZON = 3;
+    CARRIER_SPRINT = 4;
+    CARRIER_TESTESIM = 5;
+    CARRIER_ESIM = 6;
+    CARRIER_MULTISIM = 7;
+    CARRIER_ROAMSIM = 8;
+    CARRIER_DOCOMO = 9;
+    CARRIER_SOFTBANK = 10;
+    CARRIER_KDDI = 11;
+    CARRIER_RAKUTEN = 12;
+    CARRIER_VODAFONE = 13;
+    CARRIER_EE = 14;
+    CARRIER_AMARISOFT = 15;
+    CARRIER_ROGER = 16;
+    CARRIER_BELL = 17;
+    CARRIER_TELUS = 18;
+    CARRIER_STARFISH = 19;
+    CARRIER_STARFISHPLUS = 20;
+    CARRIER_PINLOCK = 21;
+    CARRIER_FI = 22;
+    CARRIER_CMW500 = 23;
+    CARRIER_CMX500 = 24;
+    CARRIER_RAK = 25;
+    CARRIER_CBRS = 26;
+    CARRIER_LINEMO = 27;
+    CARRIER_POVO = 28;
+    CARRIER_HANSHIN = 29;
+  }
+  optional Carrier carrier = 16;
+  // A list of all carriers that can be tested on the DUT. This extends the carrier field which could previously only
+  // be used with a single carrier.
+  repeated Carrier supported_carriers = 41;
+
+  // Next tag: 3
+  // We care about the both true/false cases, so we need a default value to
+  // avoid "false" getting added to an empty struct
+  enum CbxState {
+    CBX_STATE_UNSPECIFIED = 0;
+    CBX_STATE_TRUE = 1;
+    CBX_STATE_FALSE = 2;
+  }
+  // Whether this device has Chromebook X capabilities
+  optional CbxState cbx = 21;
+
+  // Next tag: 3
+  enum CbxBranding {
+    CBX_BRANDING_UNSPECIFIED = 0;
+    CBX_BRANDING_SOFT_BRANDING = 1;
+    CBX_BRANDING_HARD_BRANDING = 2;
+  }
+  // The type of CBX branding available
+  optional CbxBranding cbx_branding = 22;
+
+  // Mapping between starfish slot_id and carrier name.
+  optional string starfish_slot_mapping = 20;
+
+  optional bool detachablebase = 12;
+
+  // Indicating if the device has fingerprint sensor.
+  optional bool fingerprint = 19;
+  optional string fingerprint_board = 26;
+  optional string fingerprint_mcu = 25;
+  optional string fingerprint_sensor = 27;
+  optional bool flashrom = 14;
+
+  // Next tag: 8
+  enum FormFactor {
+    FORM_FACTOR_UNSPECIFIED = 0;
+    FORM_FACTOR_CLAMSHELL = 1;
+    FORM_FACTOR_CONVERTIBLE = 2;
+    FORM_FACTOR_DETACHABLE = 3;
+    FORM_FACTOR_CHROMEBASE = 4;
+    FORM_FACTOR_CHROMEBOX = 5;
+    FORM_FACTOR_CHROMEBIT = 6;
+    FORM_FACTOR_CHROMESLATE = 7;
+  }
+  optional FormFactor form_factor = 23;
+
+  optional string gpu_family = 3;
+  optional string gpu_id = 24;
+  optional string graphics = 4;
+  optional bool hotwording = 15;
+  optional bool internal_display = 8;
+  optional bool lucidsleep = 13;
+  optional string modem = 1;
+  optional string power = 6;
+  optional string storage = 5;
+  optional string telephony = 2;
+  optional bool webcam = 9;
+  optional bool touchpad = 10;
+  optional bool touchscreen = 18;
+
+  // NEXT TAG: 13
+  enum VideoAcceleration {
+    VIDEO_ACCELERATION_INVALID = 0;
+    VIDEO_ACCELERATION_H264 = 1;
+    VIDEO_ACCELERATION_ENC_H264 = 2;
+    VIDEO_ACCELERATION_VP8 = 3;
+    VIDEO_ACCELERATION_ENC_VP8 = 4;
+    VIDEO_ACCELERATION_VP9 = 5;
+    VIDEO_ACCELERATION_ENC_VP9 = 6;
+    VIDEO_ACCELERATION_VP9_2 = 7;
+    VIDEO_ACCELERATION_ENC_VP9_2 = 8;
+    VIDEO_ACCELERATION_H265 = 9;
+    VIDEO_ACCELERATION_ENC_H265 = 10;
+    VIDEO_ACCELERATION_MJPG = 11;
+    VIDEO_ACCELERATION_ENC_MJPG = 12;
+  }
+  repeated VideoAcceleration video_acceleration = 11;
+}
+
+// Peripherals list peripherals connected to the device in the lab.
+//
+// These peripherals are not addressable as devices themselves. For peripherals
+// that have complex connections with devices, create a separate device and
+// connections with other devices.
+//
+// Keep sorted by field names.
+//
+// NEXT TAG: 57
+message Peripherals {
+  reserved 32;
+
+  optional bool audio_board = 6;
+  // The DUT is housed in an audio box to record / replay audio for audio
+  // testing.
+  optional bool audio_box = 7;
+  // Is the DUT connected with a static 3.5mm audio cable.
+  optional bool audio_cable = 23;
+  optional bool audio_loopback_dongle = 1;
+  // Is this device connected to a chameleon (GVC head).
+  optional bool chameleon = 5;
+
+  // NEXT TAG: 12
+  enum ChameleonType {
+    reserved 1, 6 to 8;
+    CHAMELEON_TYPE_INVALID = 0;
+    CHAMELEON_TYPE_DP = 2;
+    CHAMELEON_TYPE_DP_HDMI = 3 [deprecated = true];
+    CHAMELEON_TYPE_VGA = 4 [deprecated = true];
+    CHAMELEON_TYPE_HDMI = 5;
+    CHAMELEON_TYPE_V2 = 9;
+    CHAMELEON_TYPE_V3 = 10;
+    CHAMELEON_TYPE_RPI = 11;
+  }
+
+  enum ChameleonConnectionType {
+    CHAMELEON_CONNECTION_TYPE_INVALID = 0;
+    CHAMELEON_CONNECTION_TYPE_AUDIOJACK = 1;
+    CHAMELEON_CONNECTION_TYPE_USB = 2;
+    CHAMELEON_CONNECTION_TYPE_HDMI = 3;
+    CHAMELEON_CONNECTION_TYPE_DP = 4;
+  }
+
+  repeated ChameleonType chameleon_type = 10;
+  repeated ChameleonConnectionType chameleon_connection_types = 45;
+
+  optional PeripheralState chameleon_state = 33;
+  // copy from chameleon.proto
+  // NEXT TAG: 4
+  enum AudioBoxJackPlugger {
+    AUDIOBOX_JACKPLUGGER_UNSPECIFIED = 0;
+    AUDIOBOX_JACKPLUGGER_WORKING = 1;
+    AUDIOBOX_JACKPLUGGER_BROKEN = 2;
+    AUDIOBOX_JACKPLUGGER_NOT_APPLICABLE = 3;
+  }
+  optional AudioBoxJackPlugger audiobox_jackplugger_state = 35;
+
+  // copy from peripheral.proto
+  // NEXT TAG: 3
+  enum TRRSType {
+    TRRS_TYPE_UNSPECIFIED = 0;
+    TRRS_TYPE_CTIA = 1;
+    TRRS_TYPE_OMTP = 2;
+  }
+  // Indicate the type of audio cable
+  optional TRRSType trrs_type = 42;
+
+  // Whether DUT WiFi antenna is connected conductively or OTA.
+  optional bool conductive = 11;
+  optional bool huddly = 9;
+  optional bool mimo = 8;
+  // Whether a DUT has a special camera (Logitech PTZ Pro 2) connected to it.
+  optional bool ptzpro2 = 12;
+  optional bool servo = 2;
+  repeated string servo_component = 30;
+  optional PeripheralState servo_state = 15;
+  optional string servo_type = 17;
+  optional ServoTopology servo_topology = 24;
+  optional ServoFwChannel servo_fw_channel = 27;
+
+  optional bool smart_usbhub = 21;
+  optional bool stylus = 3;
+  optional bool camerabox = 13;
+  // Is this device inside a hermetic wifi cell.
+  optional bool wificell = 4;
+
+  // Indicate if the device is in a pre-setup environment with 802.11ax routers.
+  // crbug.com/1044786
+  optional bool router_802_11ax = 14;
+
+  // Indicate how many working btpeers for this device: crbug.com/1052511
+  optional int32 working_bluetooth_btpeer = 16;
+
+  // Facing of DUT's camera to be tested whose FOV should cover chart tablet's
+  // screen in camerabox setup.
+  // NEXT TAG: 4
+  enum CameraboxFacing {
+    CAMERABOX_FACING_UNKNOWN = 0;
+    CAMERABOX_FACING_BACK = 1;
+    CAMERABOX_FACING_FRONT = 2;
+    CAMERABOX_FACING_NOCAMERA = 3;
+  }
+  optional CameraboxFacing camerabox_facing = 18;
+
+  // External light source in the camerabox, LED or NOLED.
+  // NEXT TAG: 3
+  enum CameraboxLight {
+    CAMERABOX_LIGHT_UNKNOWN = 0;
+    CAMERABOX_LIGHT_LED = 1;
+    CAMERABOX_LIGHT_NOLED = 2;
+  }
+  optional CameraboxLight camerabox_light = 22;
+
+  optional HardwareState storage_state = 19;
+  optional HardwareState servo_usb_state = 20;
+  optional HardwareState battery_state = 26;
+  optional HardwareState wifi_state = 28;
+  optional HardwareState bluetooth_state = 29;
+  optional HardwareState cellular_modem_state = 34;
+  optional PeripheralState starfish_state = 46;
+  // The overall state of the celular SIMs in the device.
+  optional PeripheralState sim_state = 48;
+  // The number of SIMs with connectable networks detected. This is only used in the converters
+  // and is not populated directly in UFS.
+  optional int32 working_sims = 49;
+  optional PeripheralState rpm_state = 25;
+
+  // The overall state of all btpeer peripherals in the testbed.
+  // Sourced from unifiedfleet.api.v1.models.chromeos.lab.DutState.peripheral_btpeer_state.
+  optional PeripheralState peripheral_btpeer_state = 44;
+  // The overall state of all wifi router peripherals in the testbed.
+  // Sourced from unifiedfleet.api.v1.models.chromeos.lab.DutState.wifi_peripheral_state.
+  optional PeripheralState peripheral_wifi_state = 31;
+
+  // Copy of chromiumos.test.lab.api.WifiRouterFeature.
+  //
+  // Recognized hardware and software features of WiFi router peripherals in
+  // our testbeds.
+  //
+  // This is not an exhaustive list of features supported by these test WiFi
+  // routers. The intent is to only track features that may differ between the
+  // different types of WiFi router devices in our labs.
+  enum WifiRouterFeature {
+    // Features are not known.
+    WIFI_ROUTER_FEATURE_UNKNOWN = 0;
+
+    // Feature was parsed from device, but it did not match any known features.
+    WIFI_ROUTER_FEATURE_INVALID = 1;
+
+    // WiFi 1 (IEEE 802.11a) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_A = 2;
+
+    // WiFi 2 (IEEE 802.11b) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_B = 3;
+
+    // WiFi 3 (IEEE 802.11g) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_G = 4;
+
+    // WiFi 4 (IEEE 802.11n) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_N = 5;
+
+    // WiFi 5 (IEEE 802.11ac) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_AC = 6;
+
+    // WiFi 6 (IEEE 802.11ax, 2.4GHz, 5GHz) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_AX = 7;
+
+    // WiFi 6E (IEEE 802.11ax, 6GHz) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_AX_E = 8;
+
+    // WiFi 7 (IEEE 802.11be) support.
+    WIFI_ROUTER_FEATURE_IEEE_802_11_BE = 9;
+
+    // The CPU is fast enough to support a double bridge over veth.
+    WIFI_ROUTER_FEATURE_DOUBLE_BRIDGE_OVER_VETH = 10;
+
+    // GCMP and GCMP-256 pairwise and group cipher support.
+    WIFI_ROUTER_FEATURE_GCMP = 11;
+
+    // SAE-EXT-KEY support for AKM-24/25.
+    WIFI_ROUTER_FEATURE_SAE_EXT_KEY = 12;
+  }
+
+  // WifiRouterFeatures that are supported by all wifi routers in the testbed.
+  //
+  // This is a copy of unifiedfleet.api.v1.rpc.Wifi.wifi_router_features.
+  //
+  // If there are no wifi routers this will be empty.
+  // If any routers have unknown features, this will just have a single
+  // WIFI_ROUTER_FEATURE_UNKNOWN entry.
+  // If any routers' features has a WIFI_ROUTER_FEATURE_INVALID feature, a
+  // WIFI_ROUTER_FEATURE_INVALID feature will be included along with the other
+  // common, valid features.
+  // If there are no common, valid features between all routers, this will just
+  // have a single WIFI_ROUTER_FEATURE_INVALID entry.
+  repeated WifiRouterFeature wifi_router_features = 40;
+
+  // All wifi router model names in the testbed.
+  //
+  // This is a collection of unifiedfleet.api.v1.rpc.WifiRouter.model values,
+  // one for each in unifiedfleet.api.v1.rpc.Wifi.wifi_routers.
+  repeated string wifi_router_models = 41;
+
+  // The state of Human Motion Robot system.
+  // See UFS peripherals.proto or go/fleet-infra-hmr-support for more context.
+  optional PeripheralState hmr_state = 36;
+
+  // Indicate the presence of a WALT device for latency testing.
+  // The walt device will be connected to the bottom usb-A port of the servo.
+  // Set to true if the HMR has a walt unit attached to it else False.
+  optional bool hmr_walt = 54;
+
+  // HMRToolType describe the enum of types of tool on HMR.
+  // Next Tag: 3
+  enum HMRToolType {
+    HMR_TOOL_TYPE_UNKNOWN = 0;
+    HMR_TOOL_TYPE_STYLUS = 1;
+    HMR_TOOL_TYPE_FAKE_FINGER = 2;
+  }
+  // Indicate the tool type currently attached to the HMR.
+  optional HMRToolType hmr_tool_type = 55;
+
+  // HMRGen describe the enum of generation of the HMR.
+  // Next Tag: 3
+  enum HMRGen {
+    HMR_GEN_UNKNOWN = 0;
+    HMR_GEN_1 = 1;
+    HMR_GEN_2 = 2;
+  }
+  // Indicate the generation of the HMR.
+  // The type of generation can be identified by the serial number behind the HMR.
+  optional HMRGen hmr_gen = 56;
+
+  // The state of Audio Latency Toolkit
+  // See UFS peripherals.proto or go/teensy-in-audiobox-proposal for more context.
+  optional PeripheralState audio_latency_toolkit_state = 43;
+
+  // The components supported by the PASIT testbed. This is a list of all of the
+  // components in the testbed and their count e.g. "DOCK-1, MONITOR-1, MONITOR-2..."
+  repeated string pasit_components = 47;
+
+  // The state of Intel AMT management.
+  // See UFS peripherals.proto or go/flex-amt-enabled-repair for more context.
+  optional PeripheralState amt_manager_state = 50;
+
+  // The type of Audio Beamforming on the DUT.
+  optional string audio_beamforming = 51;
+
+  // The state of camera on the DUT.
+  optional HardwareState camera_state = 52;
+
+  // Features supported by the available SIMs on the DUT.
+  // These are extracted from the underlying SIMProfileInfo and merged together.
+  // See go/cros-cellular-features for more information.
+  // File bugs against buganizer component: 979102.
+  repeated SIMFeature sim_features = 53;
+
+  // Possible features that the SIM supports.
+  enum SIMFeature {
+    // Unset feature.
+    SIM_FEATURE_UNSPECIFIED = 0;
+    // The SIM supports a generic live network.
+    SIM_FEATURE_LIVE_NETWORK = 1;
+    // The SIM supports SMS messaging.
+    SIM_FEATURE_SMS = 2;
+  }
+}
+
+// Servo Firmware Channel describes the firmware expected to have on servos.
+// Next Tag : 4
+enum ServoFwChannel {
+  // Servo firmware from Stable channel.
+  SERVO_FW_STABLE = 0;
+  // The previous Servo firmware from Stable channel.
+  SERVO_FW_PREV = 1;
+  // Servo firmware from Dev channel.
+  SERVO_FW_DEV = 2;
+  // Servo firmware from Alpha channel.
+  SERVO_FW_ALPHA = 3;
+}
+
+// copy of enum from dut_state.proto
+// Next Tag: 28
+enum PeripheralState {
+  // Please keep for all unknown states.
+  UNKNOWN = 0;
+  // Device and software on it is working as expected.
+  WORKING = 1;
+  // Configuration for device is not provided.
+  MISSING_CONFIG = 5;
+  // Configuration contains incorrect information.
+  WRONG_CONFIG = 4;
+  // Device is not connected/plugged.
+  NOT_CONNECTED = 2;
+  // Device is not reachable over ssh.
+  NO_SSH = 6;
+  // Device is broken or not working as expected. the state used if no specified state for the issue.
+  BROKEN = 3;
+  // Device cannot be repaired or required manual attention to fix/replace it.
+  NEED_REPLACEMENT = 7;
+
+  // Servo specific states.
+  // cr50 console missing or unresponsive.
+  CR50_CONSOLE_MISSING = 13;
+  // Servod daemon cannot start on servo-host because cr50 testlab not enabled.
+  CCD_TESTLAB_ISSUE = 8;
+  // Servod daemon cannot start on servo-host.
+  SERVOD_ISSUE = 9;
+  // device lid is not open.
+  LID_OPEN_FAILED = 10;
+  // the ribbon cable between servo and DUT is broken or not connected.
+  BAD_RIBBON_CABLE = 11;
+  // the EC on the DUT has issue.
+  EC_BROKEN = 12;
+  // Servo is not connected to the DUT.
+  DUT_NOT_CONNECTED = 14;
+  // Some component in servo-topology missed or not detected.
+  TOPOLOGY_ISSUE = 15;
+  // SBU voltage issues effect CR50 detection.
+  SBU_LOW_VOLTAGE = 16;
+  // CR50 SBU voltage detected but device was not enumerated.
+  CR50_NOT_ENUMERATED = 17;
+  // Servo serial mismatch, when servo not detected and another serial detected on previous used port.
+  SERVO_SERIAL_MISMATCH = 18;
+  // Issue to connect to servod by XMLRPC proxy.
+  SERVOD_PROXY_ISSUE = 19;
+  // Issue related to servo-host. Timeout to start servod or issue with detecting devices.
+  SERVO_HOST_ISSUE = 20;
+  // Issue related to servo_updater.
+  SERVO_UPDATER_ISSUE = 21;
+  // Issue detected in servod and reported by dut_controller_missing_fault control.
+  SERVOD_DUT_CONTROLLER_MISSING = 22;
+  // Issue related to cold reset pin on the DUT.
+  COLD_RESET_PIN_ISSUE = 23;
+  // Issue related to warm reset pin on the DUT.
+  WARM_RESET_PIN_ISSUE = 24;
+  // Issue related to power button pin on the DUT.
+  POWER_BUTTON_PIN_ISSUE = 25;
+  // Peripheral state is not applicable.
+  NOT_APPLICABLE = 26;
+  // The servo device connected to debug header is not detected.
+  // Reported by dut_controller_missing_fault control.
+  DEBUG_HEADER_SERVO_MISSING = 27;
+}
+
+// copy of enum from dut_state.proto
+// The states are using for DUT storage and USB-drive on servo.
+// Next Tag: 5
+enum HardwareState {
+  // keep for all unknown state by default.
+  HARDWARE_UNKNOWN = 0;
+  // Hardware is in good shape and pass all verifiers.
+  HARDWARE_NORMAL = 1;
+  // Hardware is still good but some not critical verifiers did not pass or provided border values.
+  // (used for DUT storage when usage reached 98%)
+  HARDWARE_ACCEPTABLE = 2;
+  // Hardware is broken or bad (did not pass verifiers).
+  HARDWARE_NEED_REPLACEMENT = 3;
+  // Hardware is not detected to run verifiers.
+  // (used for USB-drive when it expected but not detected on the device)
+  HARDWARE_NOT_DETECTED = 4;
+}
+
+// Copy from servo.proto
+// Servo Topology describe connected servo devices on DUT set-up to provide Servo functionality.
+// Next Tag : 3
+message ServoTopology  {
+  optional ServoTopologyItem main = 1;
+  repeated ServoTopologyItem children = 2;
+}
+
+// Servo Topology Item describe details of one servo device on DUT set-up.
+// Next Tag : 6
+message ServoTopologyItem {
+  // type provides the type of servo device. Keeping as String to avoid issue
+  // with introduce new type.
+  optional string type = 1;
+  // sysfs_product provides the product name of the device recorded in File
+  // System.
+  optional string sysfs_product = 2;
+  // serial provides the serial number of the device.
+  optional string serial = 3;
+  // usb_hub_port provides the port connection to the device.
+  // e.g. '1-6.2.2' where
+  //   '1-6'  - port on the labstation
+  //   '2'    - port on smart-hub connected to the labstation
+  //   '2'    - port on servo hub (part of servo_v4 or servo_v4.1) connected to
+  //   the smart-hub
+  // The same path will look '1-6.2' if connected servo_v4 directly to the
+  // labstation.
+  optional string usb_hub_port = 4;
+  // This is the firmware version of servo device.
+  optional string fw_version = 5;
+}
+
+// These labels are used by the CI system to provide test coverage hints to
+// Skylab.
+//
+// TODO(pprabhu) Most of these should instead be self-servo pools.
+// Migrate the test requests to use pools and then deprecate these fields in
+// favor of pools.
+//
+// Keep sorted by field name.
+//
+// NEXT TAG: 14
+message TestCoverageHints {
+  optional bool chaos_dut = 7;
+  optional bool chaos_nightly = 13;
+  optional bool chromesign = 11;
+
+  // Related to sparse CTS testing. See b/70309087
+  // NEXT TAG: 4
+  enum CTSSparse {
+    CTS_SPARSE_INVALID = 0;
+    CTS_SPARSE_2 = 1;
+    CTS_SPARSE_3 = 2;
+    CTS_SPARSE_5 = 3;
+  }
+  repeated CTSSparse cts_sparse = 1;
+
+  // Whether the DUT has the hangout app installed.
+  // This is a software feature of the DUT that is not provisioned as part of
+  // the test setup, hence the DUT must be labelled explicitly as supporting
+  // this feature.  Should probably be a SoftwareFeature for the DUT.
+  optional bool hangout_app = 9;
+  // Whether the DUT has the meet app installed.
+  // This is a software feature of the DUT that is not provisioned as part of
+  // the test setup, hence the DUT must be labelled explicitly as supporting
+  // this feature.  Should probably be a SoftwareFeature for the DUT.
+  optional bool meet_app = 10;
+  optional bool recovery_test = 8;
+  optional bool test_audiojack = 3;
+  optional bool test_hdmiaudio = 2;
+  optional bool test_usbaudio = 4;
+  optional bool test_usbprinting = 5;
+  optional bool usb_detect = 6;
+  optional bool use_lid = 12;
+}
+
+// NEXT TAG: 3
+message KeyValue {
+  required string key = 1;
+  optional string value = 2;
+}
+
+// Represents a Software License assigned to a device.
+// Next Tag: 2
+message License {
+  // The type of licenses (e.g. Windows)
+  optional LicenseType type = 1;
+
+  // An optional string to uniquely identify the license that was assigned,
+  // for tracking purposes.
+  optional string identifier = 2;
+}
+
+// Next Tag: 3
+enum LicenseType {
+  LICENSE_TYPE_UNSPECIFIED = 0;
+
+  // Microsoft Windows 10 Professional Desktop Operating System.
+  // Contact the Chrome OS Parallels team for license specifics.
+  LICENSE_TYPE_WINDOWS_10_PRO = 1;
+
+  // Microsoft Office Standard.
+  // Contact the Chrome OS Parallels team for license specifics.
+  LICENSE_TYPE_MS_OFFICE_STANDARD = 2;
+}
+
+// ModemInfo
+// Next Tag: 6
+message ModemInfo {
+  optional ModemType type = 1;
+  // Equipment Identifier
+  optional string imei = 2;
+  // Comma separated band numbers
+  optional string supported_bands = 3;
+  // Number of SIM's present
+  optional int32 sim_count = 4;
+  // The device model cellular sub-variant.
+  optional string model_variant = 5;
+}
+
+// Next Tag: 9
+enum ModemType {
+  MODEM_TYPE_UNSPECIFIED = 0;
+  // Unsupported modem
+  MODEM_TYPE_UNSUPPORTED = 8;
+  // Qualcomm modem
+  MODEM_TYPE_QUALCOMM_SC7180 = 1;
+  // Fibocomm modem
+  MODEM_TYPE_FIBOCOMM_L850GL = 2;
+  // NL668
+  MODEM_TYPE_NL668 = 3;
+  // FM350
+  MODEM_TYPE_FM350 = 4;
+  // FM101
+  MODEM_TYPE_FM101 = 5;
+  // SC7280
+  MODEM_TYPE_QUALCOMM_SC7280 = 6;
+  // EM060
+  MODEM_TYPE_EM060 = 7;
+  // RW101
+  MODEM_TYPE_RW101 = 9;
+  // RW135
+  MODEM_TYPE_RW135 = 10;
+  // LCUK54
+  MODEM_TYPE_LCUK54 = 11;
+}
+
+// Next Tag: 6
+message SIMInfo {
+  optional int32 slot_id = 1;
+  optional SIMType type = 2;
+  optional string eid = 3;
+  optional bool test_esim = 4;
+  repeated SIMProfileInfo profile_info = 5;
+}
+
+// Next Tag: 6
+message SIMProfileInfo {
+  optional string iccid = 1;
+  optional string sim_pin = 2;
+  optional string sim_puk = 3;
+  optional NetworkProvider carrier_name = 4;
+  // Carrier provided number
+  optional string own_number = 5;
+}
+// Next Tag: 22
+enum NetworkProvider {
+  NETWORK_OTHER = 0;
+  NETWORK_UNSUPPORTED = 5;
+  NETWORK_TEST = 1;
+  NETWORK_ATT = 2;
+  NETWORK_TMOBILE = 3;
+  NETWORK_VERIZON = 4;
+  NETWORK_SPRINT = 6;
+  NETWORK_DOCOMO = 7;
+  NETWORK_SOFTBANK = 8;
+  NETWORK_KDDI = 9;
+  NETWORK_RAKUTEN = 10;
+  NETWORK_VODAFONE = 11;
+  NETWORK_EE = 12;
+  NETWORK_AMARISOFT = 13;
+  NETWORK_ROGER = 14;
+  NETWORK_BELL = 15;
+  NETWORK_TELUS = 16;
+  NETWORK_FI = 17;
+  NETWORK_CBRS = 18;
+  NETWORK_LINEMO = 19;
+  NETWORK_POVO = 20;
+  NETWORK_HANSHIN = 21;
+}
+
+// Next Tag: 3
+enum SIMType {
+  SIM_UNKNOWN = 0;
+  SIM_PHYSICAL = 1;
+  SIM_DIGITAL = 2;
+}

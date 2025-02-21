@@ -1,0 +1,92 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+package costserver
+
+import (
+	"context"
+
+	"google.golang.org/grpc/codes"
+
+	"go.chromium.org/luci/common/errors"
+	"go.chromium.org/luci/common/logging"
+	"go.chromium.org/luci/gae/service/datastore"
+
+	// TODO, move shared util to a standalone directory.
+	shivasUtil "go.chromium.org/infra/cmd/shivas/utils"
+	fleetcostModels "go.chromium.org/infra/cros/fleetcost/api/models"
+	fleetcostAPI "go.chromium.org/infra/cros/fleetcost/api/rpc"
+	"go.chromium.org/infra/cros/fleetcost/internal/costserver/controller"
+	"go.chromium.org/infra/cros/fleetcost/internal/costserver/entities"
+	"go.chromium.org/infra/cros/fleetcost/internal/fleetcosterror"
+	ufsAPI "go.chromium.org/infra/unifiedfleet/api/v1/rpc"
+	ufsUtil "go.chromium.org/infra/unifiedfleet/app/util"
+)
+
+// GetCostResult gets cost result of a fleet resource(DUT, scheduling unit).
+//
+// TODO(gregorynisbet):
+//
+//		 Include "missing entries forgiveness" disposition in the cache.
+//	         We don't want strict and lax cache entries interfering with each other.
+func (f *FleetCostFrontend) GetCostResult(ctx context.Context, req *fleetcostAPI.GetCostResultRequest) (*fleetcostModels.CostResult, error) {
+	logging.Infof(ctx, "Begin GetCostResult for hostname=%q", req.GetHostname())
+	if req.GetNoUfs() || req.GetForceUpdate() {
+		return f.getCostResultImpl(ctx, req)
+	}
+	ent, readErr := controller.ReadValidCachedCostResult(ctx, req.GetHostname())
+	if entHasCostResult(readErr, ent) {
+		logging.Infof(ctx, "Return GetCostResult result from cache for hostname=%q", req.GetHostname())
+		return ent.CostResult, nil
+	}
+	if readErr != nil && !datastore.IsErrNoSuchEntity(readErr) {
+		logging.Errorf(ctx, "Unexpected error while reading from cache for hostname=%q: %s", req.GetHostname(), readErr)
+		return nil, errors.Annotate(readErr, "get cost result").Err()
+	}
+
+	logging.Infof(ctx, "really compute cost for hostname=%q", req.GetHostname())
+	return f.getCostResultImpl(ctx, req)
+}
+
+// Function getCostResultImpl calculates a cost result and saves it to the database.
+//
+// We assume that either GetForceUpdate has been applied or that there's no cache entry that's recent enough to use instead.
+func (f *FleetCostFrontend) getCostResultImpl(ctx context.Context, req *fleetcostAPI.GetCostResultRequest) (*fleetcostModels.CostResult, error) {
+	// Handling OS namespace request only at MVP.
+	logging.Infof(ctx, "begin cost result request for dut %q Id %q", req.GetHostname(), req.GetDeviceId())
+	ctx = shivasUtil.SetupContext(ctx, ufsUtil.OSNamespace)
+	if f.fleetClient == nil {
+		return nil, fleetcosterror.WithDefaultCode(codes.Internal, errors.New("fleet client must exist"))
+	}
+	var deviceDataRes *ufsAPI.GetDeviceDataResponse
+	if !req.GetNoUfs() {
+		var err error
+		deviceDataRes, err = f.fleetClient.GetDeviceData(ctx, &ufsAPI.GetDeviceDataRequest{Hostname: req.GetHostname()})
+		if err != nil {
+			return nil, errors.Annotate(err, "get cost result").Err()
+		}
+	}
+	res, err := controller.CalculateCostForOsResource(ctx, f.fleetClient, deviceDataRes, req)
+	if err != nil {
+		return nil, fleetcosterror.WithDefaultCode(codes.Aborted, errors.Annotate(err, "get cost result").Err())
+	}
+	if err := controller.StoreCachedCostResult(ctx, req.GetHostname(), res); err != nil {
+		logging.Errorf(ctx, "%s\n", errors.Annotate(err, "caching get cost result").Err())
+	}
+	return res, nil
+}
+
+// entHasCostResult returns true if and only if we read a valid entity out of datastore.
+func entHasCostResult(readErr error, ent *entities.CachedCostResultEntity) bool {
+	if readErr != nil {
+		return false
+	}
+	if ent == nil {
+		return false
+	}
+	if ent.CostResult == nil {
+		return false
+	}
+	return true
+}
